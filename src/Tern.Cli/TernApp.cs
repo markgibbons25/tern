@@ -35,6 +35,7 @@ public static class TernApp
         root.Subcommands.Add(PublishCommands.Build());
         root.Subcommands.Add(PublishCommands.BuildIndex());
         root.Subcommands.Add(PublishCommands.BuildDbCleanup());
+        root.Subcommands.Add(ItemResCommands.Build());
 
         root.SetAction(parse =>
         {
