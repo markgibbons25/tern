@@ -15,7 +15,7 @@ public static partial class CloudCommands
         Action(list, async (parse, session, cloud, ct) =>
         {
             var environments = CloudJson.Items(await cloud.Deploy.EnvironmentsAsync(parse.GetValue(listProject)!, ct)).ToList();
-            session.Output.Document("cloud environment list", w => CloudOutput.WriteArray(w, "environments", environments, CloudOutput.Environment));
+            session.Output.RawJson(w => CloudOutput.WriteArray(w, environments, CloudOutput.Environment));
             session.Output.Line($"Found {environments.Count} environment(s)");
             foreach (var e in environments)
             {
@@ -63,11 +63,7 @@ public static partial class CloudCommands
         Action(info, async (parse, session, cloud, ct) =>
         {
             var environment = await cloud.Deploy.EnvironmentAsync(parse.GetValue(infoId)!, ct);
-            session.Output.Document("cloud environment info", w =>
-            {
-                w.WritePropertyName("environment");
-                CloudOutput.WriteObject(w, environment, CloudOutput.Environment);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, environment, CloudOutput.Environment));
             PrintObject(session.Output, $"{CloudJson.String(environment, "name")} Environment detailed information:", environment, CloudOutput.Environment);
             return ExitCodes.Success;
         });
@@ -94,12 +90,7 @@ public static partial class CloudCommands
             var environment = await cloud.Deploy.EnvironmentAsync(parse.GetValue(healthId)!, ct);
             var host = CloudJson.String(environment, "host") ?? throw new CliException("SitecoreAI did not return the environment's host.");
             var status = await cloud.Deploy.CmHealthAsync(host, ct);
-            session.Output.Document("cloud environment health", w =>
-            {
-                w.WriteString("environmentId", parse.GetValue(healthId));
-                w.WriteString("host", host);
-                w.WriteString("health", status);
-            });
+            session.Output.RawJson(w => w.WriteStringValue(status));
             session.Output.Line($"Environment health status: {status}");
             return ExitCodes.Success;
         });
@@ -131,11 +122,7 @@ public static partial class CloudCommands
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
             }
-            session.Output.Document("cloud environment restart", w =>
-            {
-                w.WritePropertyName("restart");
-                CloudOutput.WriteObject(w, status.ValueKind == JsonValueKind.Object ? status : EmptyObject, CloudOutput.RestartStatus);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, status.ValueKind == JsonValueKind.Object ? status : EmptyObject, CloudOutput.RestartStatus));
             var complete = status.ValueKind == JsonValueKind.Object && CloudOutput.Status(status, "restartStatus") == 2;
             if (complete)
             {
@@ -158,17 +145,13 @@ public static partial class CloudCommands
 
     private static void Done(Output output, string command, string environmentId, string verb)
     {
-        output.Document(command, w => w.WriteString("environmentId", environmentId));
+        output.RawJson(w => w.WriteNullValue());
         output.Line($"Environment Id '{environmentId}' has been {verb}");
     }
 
     private static void PrintCreatedEnvironment(Output output, string command, JsonElement created, string hint)
     {
-        output.Document(command, w =>
-        {
-            w.WritePropertyName("environment");
-            CloudOutput.WriteObject(w, created, CloudOutput.CreatedEnvironment);
-        });
+        output.RawJson(w => CloudOutput.WriteObject(w, created, CloudOutput.CreatedEnvironment));
         output.Line("Environment created.");
         output.Line($"'{CloudJson.String(created, "name")}' Environment was created within '{CloudJson.String(created, "projectName")}' Project for the '{CloudJson.String(created, "organizationName")}' Organization.");
         CloudOutput.Table(created, CloudOutput.CreatedEnvironment).ToList().ForEach(output.Line);
@@ -217,12 +200,14 @@ public static partial class CloudCommands
                 endpoint.SetOwn("audience", parse.GetValue(audience) ?? Tern.Remote.Auth.Defaults.Audience);
             }
             session.Store.Save();
-            session.Output.Document("cloud environment connect", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("endpoint", endpoint.Name);
                 w.WriteString("host", endpoint.Host);
                 w.WriteString("ref", endpoint.Ref);
                 w.WriteBoolean("allowWrite", endpoint.AllowWrite);
+                w.WriteEndObject();
             });
             session.Output.Line($"Endpoint '{endpoint.Name}' now points at {endpoint.Host} using the {CloudEndpoints.Name} login{(endpoint.AllowWrite ? string.Empty : " (read-only)")}.");
             return ExitCodes.Success;
@@ -266,7 +251,12 @@ public static partial class CloudCommands
             }
             session.Store.Remove(endpoint.Name);
             session.Store.Save();
-            session.Output.Document("cloud environment disconnect", w => w.WriteString("removed", endpoint.Name));
+            session.Output.RawJson(w =>
+            {
+                w.WriteStartObject();
+                w.WriteString("removed", endpoint.Name);
+                w.WriteEndObject();
+            });
             session.Output.Line($"Successfully disconnected from the environment {endpoint.Name}");
             return ExitCodes.Success;
         }, ct));
@@ -281,10 +271,12 @@ public static partial class CloudCommands
         Action(delete, async (parse, session, cloud, ct) =>
         {
             await cloud.Deploy.DeleteVariableAsync(parse.GetValue(deleteId)!, parse.GetValue(deleteName)!, ct);
-            session.Output.Document("cloud environment variable delete", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("environmentId", parse.GetValue(deleteId));
                 w.WriteString("name", parse.GetValue(deleteName));
+                w.WriteEndObject();
             });
             session.Output.Line($"'{parse.GetValue(deleteName)}' Environment variable was deleted within '{parse.GetValue(deleteId)}' Environment.");
             return ExitCodes.Success;
@@ -297,7 +289,7 @@ public static partial class CloudCommands
             var variables = CloudJson.Items(await cloud.Deploy.VariablesAsync(parse.GetValue(listId)!, ct)).ToList();
             // The Official CLI shows a variable without a target as applying to every target.
             IReadOnlyDictionary<string, string>? AnyTarget(JsonElement v) => CloudJson.String(v, "target") is null ? new Dictionary<string, string> { ["target"] = "*" } : null;
-            session.Output.Document("cloud environment variable list", w => CloudOutput.WriteArray(w, "variables", variables, CloudOutput.Variable, AnyTarget));
+            session.Output.RawJson(w => CloudOutput.WriteArray(w, variables, CloudOutput.Variable, AnyTarget));
             session.Output.Line($"Found {variables.Count} variable(s)");
             foreach (var v in variables)
             {
@@ -316,12 +308,14 @@ public static partial class CloudCommands
         Action(upsert, async (parse, session, cloud, ct) =>
         {
             await cloud.Deploy.UpsertVariableAsync(parse.GetValue(upsertId)!, parse.GetValue(upsertName)!, parse.GetValue(value)!, parse.GetValue(secret), parse.GetValue(target), ct);
-            session.Output.Document("cloud environment variable upsert", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("environmentId", parse.GetValue(upsertId));
                 w.WriteString("name", parse.GetValue(upsertName));
                 w.WriteBoolean("secret", parse.GetValue(secret));
                 w.WriteString("target", parse.GetValue(target));
+                w.WriteEndObject();
             });
             session.Output.Line($"'{parse.GetValue(upsertName)}' Environment variable was accepted for upsert within '{parse.GetValue(upsertId)}' Environment.");
             return ExitCodes.Success;
@@ -341,7 +335,7 @@ public static partial class CloudCommands
         Action(list, async (parse, session, cloud, ct) =>
         {
             var files = CloudJson.Items(await cloud.Monitoring.LogFilesAsync(parse.GetValue(listId)!, parse.GetValue(latest), ct)).ToList();
-            session.Output.Document("cloud environment log list", w => CloudOutput.WriteArray(w, "logFiles", files, CloudOutput.LogFile));
+            session.Output.RawJson(w => CloudOutput.WriteArray(w, files, CloudOutput.LogFile));
             session.Output.Line($"Listing filenames of {files.Count} log file(s):");
             session.Output.Line();
             foreach (var f in files)
@@ -364,14 +358,21 @@ public static partial class CloudCommands
             if (bytes.Length == 0)
             {
                 session.Output.Line($"Log file {file} of environment {parse.GetValue(downloadId)} is empty.");
-                session.Output.Document("cloud environment log download", w => w.WriteNull("path"));
+                session.Output.RawJson(w =>
+                {
+                    w.WriteStartObject();
+                    w.WriteNull("path");
+                    w.WriteEndObject();
+                });
                 return ExitCodes.Success;
             }
             var path = SaveFile(parse.GetValue(outputPath), file, bytes);
-            session.Output.Document("cloud environment log download", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("path", path);
                 w.WriteNumber("bytes", bytes.Length);
+                w.WriteEndObject();
             });
             session.Output.Line($"Log File {file} saved at location: {path}");
             return ExitCodes.Success;
@@ -385,10 +386,12 @@ public static partial class CloudCommands
             var file = parse.GetValue(viewFile)!;
             var bytes = await cloud.Monitoring.LogFileAsync(parse.GetValue(viewId)!, file, download: false, null, ct);
             var text = Encoding.UTF8.GetString(bytes);
-            session.Output.Document("cloud environment log view", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("file", file);
                 w.WriteString("content", text);
+                w.WriteEndObject();
             });
             if (bytes.Length == 0)
             {

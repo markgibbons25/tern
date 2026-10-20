@@ -1,0 +1,31 @@
+# Deviations
+
+Tern produces the same result as the Official CLI wherever the Official CLI succeeds, and differs only where the Official CLI fails ([ADR 0007](adr/0007-deviations-only-where-the-official-cli-fails.md)). Each Deviation below is backed by a test.
+
+| # | Deviation | Official CLI | Tern | Test |
+|---|---|---|---|---|
+| D1 | A `\|` block value whose blank line was trimmed by an editor | Ends the block early, then fails to parse the next line | Reads the blank line as part of the block, as long as the block plainly continues after it | `ItemFileFormatTests.Deviation_D1_…` |
+| D2 | Pull from an Endpoint without `allowWrite` | Refuses the pull, even though it only writes files | Pulls; `allowWrite` still guards every write to a CM | `PushRunner` refuses writes; see `SyncRunner.PullAsync` |
+| D3 | An access token about to expire | Sends it, waits for a 401/403/302, then refreshes | Refreshes it before use, two minutes ahead of expiry | `TokenProvider` |
+| D4 | A token refresh | Re-saves `sitecore.json` as well as `user.json`, which leaves a git diff | Writes only `user.json` | `LoginStore.Save` |
+| D5 | Version handshake with Management Services | Claims its own version; rejected by a server with a higher major version | Opts out of the comparison and detects features from the schema ([ADR 0006](adr/0006-feature-detection-not-version-claims.md)) | `ManagementClient` |
+| D6 | Credentials for CI and agents | None from the environment | `TERN_<ENDPOINT>_CLIENT_ID`/`_CLIENT_SECRET` (or `TERN_CLIENT_ID`/`TERN_CLIENT_SECRET`), never written to disk | `EnvironmentCredentials` |
+| D7 | `plugin add/remove/init` | Download NuGet plugins | Do nothing: the plugins' commands are built in ([ADR 0002](adr/0002-native-aot-and-executable-extensions.md)) | — |
+| D8 | `cloud environment log download` without `-o`/`--outputpath` | Fails: the output path is required | Saves the file in the current folder | `CloudCommands.SaveFile` |
+
+## Where Tern matches a known Official CLI bug
+
+Matching these keeps results identical. They are listed so nobody "fixes" them by accident.
+
+- A single-line value that starts with `|` is read as an empty block.
+- On Linux and macOS, a role's file name contains a literal backslash (`sitecore\Author.yml`) because the role name is joined to the folder as-is.
+- Item files are written with the platform's line ending, but block values are always read back joined with CRLF.
+- In a resource package on Linux, a multilist joined from CRLF-separated values keeps its carriage returns.
+
+## Differences that are not Deviations
+
+These change how Tern works, never what it produces.
+
+- **Request pattern.** Tern sends bigger batches and more requests in parallel, and reads the Change history where it can ([ADR 0005](adr/0005-stock-management-services-first.md)).
+- **Order within a level.** Siblings may be listed, and created, in a different order. Parents always come before children, so the resulting state is the same.
+- **Messages.** Progress and log lines on stderr follow the Official CLI's wording where scripts are likely to read them (`[master] Discovered N changes…`), but are not a contract. `--json` is the contract ([CLI contract](cli-contract.md)).

@@ -22,11 +22,7 @@ public static partial class CloudCommands
         Action(info, async (parse, session, cloud, ct) =>
         {
             var deployment = await cloud.Deploy.DeploymentAsync(parse.GetValue(infoId)!, ct);
-            session.Output.Document("cloud deployment info", w =>
-            {
-                w.WritePropertyName("deployment");
-                CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment));
             var id = CloudJson.String(deployment, "id") ?? parse.GetValue(infoId)!;
             var page = CloudEndpoints.DeploymentPage(id);
             switch (CloudOutput.Status(deployment, "calculatedStatus"))
@@ -69,7 +65,7 @@ public static partial class CloudCommands
         Action(list, async (parse, session, cloud, ct) =>
         {
             var deployments = CloudJson.Items(await cloud.Deploy.DeploymentsAsync(parse.GetValue(listId)!, ct)).ToList();
-            session.Output.Document("cloud deployment list", w => CloudOutput.WriteArray(w, "deployments", deployments, CloudOutput.Deployment));
+            session.Output.RawJson(w => CloudOutput.WriteArray(w, deployments, CloudOutput.Deployment));
             session.Output.Line($"Found {deployments.Count} deployment(s)");
             foreach (var d in deployments)
             {
@@ -118,7 +114,7 @@ public static partial class CloudCommands
         Action(watch, async (parse, session, cloud, ct) =>
         {
             var result = await WatchAsync(session.Output, cloud, parse.GetValue(watchId)!, parse.GetValue(watchWait), parse.GetValue(watchDns), ct);
-            session.Output.Document("cloud deployment watch", w => WriteWatchResult(w, result));
+            session.Output.RawJson(w => WriteWatchResult(w, result));
             return result.ExitCode;
         });
 
@@ -128,7 +124,12 @@ public static partial class CloudCommands
         {
             session.Output.Info("Canceling deployment...");
             await cloud.Deploy.CancelDeploymentAsync(parse.GetValue(cancelId)!, ct);
-            session.Output.Document("cloud deployment cancel", w => w.WriteString("deploymentId", parse.GetValue(cancelId)));
+            session.Output.RawJson(w =>
+            {
+                w.WriteStartObject();
+                w.WriteString("deploymentId", parse.GetValue(cancelId));
+                w.WriteEndObject();
+            });
             session.Output.Line($"Deployment {parse.GetValue(cancelId)} canceled.");
             return ExitCodes.Success;
         });
@@ -155,15 +156,15 @@ public static partial class CloudCommands
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();
-                CloudOutput.WriteArray(w, "Logs", lines, CloudOutput.DeploymentLogLine);
+                w.WritePropertyName("Logs");
+                CloudOutput.WriteArray(w, lines, CloudOutput.DeploymentLogLine);
             }
             var outputPath = parse.GetValue(logPath);
             if (session.Output.Json)
             {
-                session.Output.Document("cloud deployment log", w =>
+                session.Output.RawJson(w =>
                 {
-                    w.WriteString("deploymentId", id);
-                    w.WriteStartObject("logs");
+                    w.WriteStartObject();
                     WriteLogs(w);
                     w.WriteEndObject();
                 });
@@ -249,12 +250,7 @@ public static partial class CloudCommands
         }
         session.Output.Line($"It was not started. Start it with `tern cloud deployment start --deployment-id {deploymentId}`.");
         var deployment = await cloud.Deploy.DeploymentAsync(deploymentId, ct);
-        session.Output.Document(command, w =>
-        {
-            w.WriteString("deploymentId", deploymentId);
-            w.WritePropertyName("deployment");
-            CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment);
-        });
+        session.Output.RawJson(w => CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment));
         return ExitCodes.Success;
     }
 
@@ -265,12 +261,7 @@ public static partial class CloudCommands
         if (noWatch)
         {
             var deployment = await cloud.Deploy.DeploymentAsync(deploymentId, ct);
-            session.Output.Document(command, w =>
-            {
-                w.WriteString("deploymentId", deploymentId);
-                w.WritePropertyName("deployment");
-                CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, deployment, CloudOutput.Deployment));
             session.Output.Line($"Deployment '{deploymentId}' has started. Run `tern cloud deployment info --deployment-id {deploymentId}` to see its details.");
             session.Output.Line($"To see realtime progress go to: {page}");
             return ExitCodes.Success;
@@ -278,11 +269,7 @@ public static partial class CloudCommands
         session.Output.Line("Deployment has been started");
         session.Output.Line($"To see realtime progress go to: {page}");
         var result = await WatchAsync(session.Output, cloud, deploymentId, waitForPostActions, dnsTimeout, ct);
-        session.Output.Document(command, w =>
-        {
-            w.WriteString("deploymentId", deploymentId);
-            WriteWatchResult(w, result);
-        });
+        session.Output.RawJson(w => WriteWatchResult(w, result));
         return result.ExitCode;
     }
 
@@ -405,10 +392,10 @@ public static partial class CloudCommands
         : span.Hours != 0 ? $"{span.Hours:D2}h:{span.Minutes:D2}m:{span.Seconds:D2}s"
         : $"{span.Minutes:D2}m:{span.Seconds:D2}s";
 
-    /// <summary>The watch result in the Official CLI's JSON shape, under <c>result</c>.</summary>
+    /// <summary>The watch result in the Official CLI's JSON shape.</summary>
     private static void WriteWatchResult(Utf8JsonWriter w, WatchResult result)
     {
-        w.WriteStartObject("result");
+        w.WriteStartObject();
         w.WriteBoolean("IsTimedOut", result.IsTimedOut);
         w.WriteBoolean("IsCompleted", result.IsCompleted);
         w.WriteStartObject("StatusByTask");

@@ -56,7 +56,7 @@ The booleans in these query strings are written as .NET prints them, `True` and 
 
 ## Output
 
-Tern's `--json` document carries each object under a named property (`projects`, `environment`, `deployments`, …) in the Official CLI's own shape: the same field names and casing, including the PascalCase of `organization info` and `log list`, and the same value types, such as numeric deployment statuses but a named `provisioningStatus` for an environment. For the read commands, human output matches the Official CLI's tables line for line, with dates in the current culture. The messages of the write commands are Tern's own wording.
+With `--json`, Tern prints the Official CLI's own payload, unwrapped: the same root (array, object, string or `null` for commands that return nothing), the same field names and casing, including the PascalCase of `organization info` and `log list`, and the same value types, such as numeric deployment statuses but a named `provisioningStatus` for an environment. Commands the Official CLI gives no `--json` (`login`, `logout`, `connect`, `disconnect`, `variable upsert`/`delete`, `log download`/`view`, `deployment cancel`) print a small bare object of Tern's own. For the read commands, human output matches the Official CLI's tables line for line, with dates in the current culture. The messages of the write commands are Tern's own wording.
 
 ## Source upload
 

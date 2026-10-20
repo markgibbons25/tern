@@ -175,12 +175,14 @@ public static partial class CloudCommands
             session.Store.Save();
             var organization = Jwt.Claim(result.AccessToken, CloudEndpoints.OrganizationClaim);
             session.Output.Info($"Logged in to SitecoreAI{(organization is null ? string.Empty : $" (organization {organization})")}; the login is stored as endpoint '{endpoint.Name}'.");
-            session.Output.Document("cloud login", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteString("endpoint", endpoint.Name);
                 w.WriteString("host", endpoint.Host);
                 w.WriteString("organizationId", organization);
                 w.WriteBoolean("allowWrite", endpoint.AllowWrite);
+                w.WriteEndObject();
             });
             return ExitCodes.Success;
         }, ct));
@@ -209,10 +211,12 @@ public static partial class CloudCommands
             if (cloud is null)
             {
                 session.Output.Line($"Endpoint {CloudEndpoints.Name} is not present.");
-                session.Output.Document("cloud logout", w =>
+                session.Output.RawJson(w =>
                 {
+                    w.WriteStartObject();
                     w.WriteStartArray("removed");
                     w.WriteEndArray();
+                    w.WriteEndObject();
                 });
                 return Task.FromResult(ExitCodes.Success);
             }
@@ -225,12 +229,14 @@ public static partial class CloudCommands
             }
             session.Output.Line($"Successfully logged out from {CloudEndpoints.Name}");
             session.Output.Info($"To end the browser session as well, open {authority.TrimEnd('/')}/v2/logout");
-            session.Output.Document("cloud logout", w =>
+            session.Output.RawJson(w =>
             {
+                w.WriteStartObject();
                 w.WriteStartArray("removed");
                 removed.ToList().ForEach(w.WriteStringValue);
                 w.WriteEndArray();
                 w.WriteString("logoutUrl", $"{authority.TrimEnd('/')}/v2/logout");
+                w.WriteEndObject();
             });
             return Task.FromResult(ExitCodes.Success);
         }, ct));
@@ -245,7 +251,7 @@ public static partial class CloudCommands
         Action(list, async (parse, session, cloud, ct) =>
         {
             var projects = CloudJson.Items(await cloud.Deploy.ProjectsAsync(ct)).ToList();
-            session.Output.Document("cloud project list", w => CloudOutput.WriteArray(w, "projects", projects, CloudOutput.Project));
+            session.Output.RawJson(w => CloudOutput.WriteArray(w, projects, CloudOutput.Project));
             session.Output.Line($"Found {projects.Count} project(s)");
             foreach (var p in projects)
             {
@@ -261,11 +267,7 @@ public static partial class CloudCommands
         {
             var project = await cloud.Deploy.CreateProjectAsync(parse.GetValue(createName)!, ct);
             var region = CloudOutput.RegionOverride(project);
-            session.Output.Document("cloud project create", w =>
-            {
-                w.WritePropertyName("project");
-                CloudOutput.WriteObject(w, project, CloudOutput.CreatedProject, region);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, project, CloudOutput.CreatedProject, region));
             var id = CloudJson.String(project, "id");
             session.Output.Line("Project created.");
             session.Output.Line($"'{CloudJson.String(project, "name")}' Project was created within '{region["region"]}' Region for the '{CloudJson.String(project, "organizationName")}' Organization.");
@@ -288,12 +290,8 @@ public static partial class CloudCommands
             var id = parse.GetValue(updateId)!;
             var previous = CloudJson.String(await cloud.Deploy.ProjectAsync(id, ct), "name");
             await cloud.Deploy.UpdateProjectAsync(id, parse.GetValue(updateName)!, ct);
-            session.Output.Document("cloud project update", w =>
-            {
-                w.WriteString("projectId", id);
-                w.WriteString("previousName", previous);
-                w.WriteString("name", parse.GetValue(updateName));
-            });
+            // The Official CLI's --json prints null for a command that returns nothing.
+            session.Output.RawJson(w => w.WriteNullValue());
             session.Output.Line("Project updated.");
             session.Output.Line($"Project '{id}' was renamed from '{previous}' to '{parse.GetValue(updateName)}'.");
             return ExitCodes.Success;
@@ -309,11 +307,7 @@ public static partial class CloudCommands
             var name = CloudJson.String(project, "name");
             Confirm(parse.GetValue(deleteForce), $"delete project '{name}' ({id})");
             await cloud.Deploy.DeleteProjectAsync(id, ct);
-            session.Output.Document("cloud project delete", w =>
-            {
-                w.WriteString("projectId", id);
-                w.WriteString("name", name);
-            });
+            session.Output.RawJson(w => w.WriteNullValue());
             session.Output.Line($"Project '{name}' ({id}) was deleted from the '{CloudJson.String(project, "organizationName")}' Organization.");
             return ExitCodes.Success;
         });
@@ -324,11 +318,7 @@ public static partial class CloudCommands
         {
             var project = await cloud.Deploy.ProjectAsync(parse.GetValue(infoId)!, ct);
             var region = CloudOutput.RegionOverride(project);
-            session.Output.Document("cloud project info", w =>
-            {
-                w.WritePropertyName("project");
-                CloudOutput.WriteObject(w, project, CloudOutput.Project, region);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, project, CloudOutput.Project, region));
             PrintObject(session.Output, $"{CloudJson.String(project, "name")} Project detailed information:", project, CloudOutput.Project, region);
             return ExitCodes.Success;
         });
@@ -354,11 +344,7 @@ public static partial class CloudCommands
         Action(info, async (parse, session, cloud, ct) =>
         {
             var organization = await cloud.Deploy.OrganizationAsync(await cloud.OrganizationIdAsync(parse.GetValue(infoId), ct), ct);
-            session.Output.Document("cloud organization info", w =>
-            {
-                w.WritePropertyName("organization");
-                CloudOutput.WriteObject(w, organization, CloudOutput.Organization);
-            });
+            session.Output.RawJson(w => CloudOutput.WriteObject(w, organization, CloudOutput.Organization));
             CloudOutput.Table(organization, CloudOutput.Organization).ToList().ForEach(session.Output.Line);
             return ExitCodes.Success;
         });
@@ -368,9 +354,9 @@ public static partial class CloudCommands
         Action(health, async (parse, session, cloud, ct) =>
         {
             var report = await cloud.Deploy.OrganizationHealthAsync(await cloud.OrganizationIdAsync(parse.GetValue(healthId), ct), ct);
-            session.Output.Document("cloud organization health", w =>
+            session.Output.RawJson(w =>
             {
-                w.WriteStartObject("health");
+                w.WriteStartObject();
                 w.WriteString("Status", CloudJson.String(report, "status"));
                 w.WriteStartArray("Resources");
                 foreach (var r in CloudJson.TryGet(report, "resources", out var resources) ? CloudJson.Items(resources) : [])
@@ -395,7 +381,7 @@ public static partial class CloudCommands
             var folder = session.ProjectDirectory;
             var file = Path.Combine(folder, "license.xml");
             await File.WriteAllBytesAsync(file, bytes, ct);
-            session.Output.Document("cloud organization license", w => w.WriteString("path", file));
+            session.Output.RawJson(w => w.WriteNullValue());
             session.Output.Line($"Organization license has been saved to {folder}.");
             return ExitCodes.Success;
         });

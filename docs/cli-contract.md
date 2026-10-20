@@ -3,7 +3,7 @@
 These rules apply to every command. Scripts and agents can rely on them.
 
 - **Streams.** stdout carries results only. Progress, logs and warnings go to stderr.
-- **`--json`.** Produces exactly one JSON document per command on stdout, with a `schemaVersion`. A Plan's JSON form is part of this contract ([ADR 0008](adr/0008-plans-with-signature-preconditions.md)).
+- **`--json`.** Produces exactly one JSON document per command on stdout, with a `schemaVersion`. A Plan's JSON form is part of this contract ([ADR 0008](adr/0008-plans-with-signature-preconditions.md)). Commands the Official CLI already gives `--json` (the `cloud` group) print the Official CLI's own payload, unwrapped, so existing scripts keep working.
 - **Exit codes.** Documented and kept stable. They start from the Official CLI's own codes, so existing scripts keep working.
 - **Prompts.** Never shown without a TTY. A destructive action needs `--yes` or a reviewed Plan.
 - **Telemetry.** None, ever.

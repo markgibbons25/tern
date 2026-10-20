@@ -33,9 +33,9 @@ public sealed record CloudField(string Api, string Label, CloudFieldKind Kind = 
 }
 
 /// <summary>
-/// Renders SitecoreAI objects. The JSON payloads keep the Official CLI's field names, casing and
-/// value types inside Tern's document, so a script that read <c>dotnet sitecore cloud … --json</c>
-/// only has to step into the named property.
+/// Renders SitecoreAI objects. The JSON payloads are the Official CLI's own: the same root shape,
+/// field names, casing and value types, so scripts that read <c>dotnet sitecore cloud … --json</c>
+/// keep working unchanged.
 /// </summary>
 public static class CloudOutput
 {
@@ -239,9 +239,9 @@ public static class CloudOutput
         w.WriteEndObject();
     }
 
-    public static void WriteArray(Utf8JsonWriter w, string property, IEnumerable<JsonElement> items, IReadOnlyList<CloudField> shape, Func<JsonElement, IReadOnlyDictionary<string, string>?>? overrides = null)
+    public static void WriteArray(Utf8JsonWriter w, IEnumerable<JsonElement> items, IReadOnlyList<CloudField> shape, Func<JsonElement, IReadOnlyDictionary<string, string>?>? overrides = null)
     {
-        w.WriteStartArray(property);
+        w.WriteStartArray();
         foreach (var item in items)
         {
             WriteObject(w, item, shape, overrides?.Invoke(item));

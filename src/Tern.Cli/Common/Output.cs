@@ -56,6 +56,28 @@ public sealed class Output(bool json, bool verbose, bool trace)
         stream.Write("\n"u8);
     }
 
+    /// <summary>
+    /// Writes one bare JSON value to stdout, with no <c>schemaVersion</c> wrapper. Used where the
+    /// Official CLI already has <c>--json</c> (the <c>cloud</c> group), so its payload is printed
+    /// exactly as existing scripts expect it (docs/cli-contract.md).
+    /// </summary>
+    public void RawJson(Action<Utf8JsonWriter> writeValue)
+    {
+        if (!Json)
+        {
+            return;
+        }
+        using var stream = JsonStream is null ? Console.OpenStandardOutput() : null;
+        var target = JsonStream ?? stream!;
+        using var w = new Utf8JsonWriter(target, new JsonWriterOptions { Indented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        writeValue(w);
+        w.Flush();
+        target.Write("\n"u8);
+    }
+
+    /// <summary>Where <see cref="RawJson"/> writes instead of stdout; tests set it.</summary>
+    public Stream? JsonStream { get; init; }
+
     private static bool UseColor => !Console.IsErrorRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null;
 
     private static string Color(string code, string text) => UseColor ? $"\u001b[{code}m{text}\u001b[0m" : text;

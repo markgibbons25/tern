@@ -241,6 +241,31 @@ public class CloudCommandLineTests
 public class CloudOutputTests
 {
     [Fact]
+    public void Prints_the_Official_CLI_payload_without_a_wrapper()
+    {
+        var projects = JsonDocument.Parse("""[{"id":"p1","name":"Shop","region":"aue","extra":1}]""").RootElement;
+        using var stream = new MemoryStream();
+        var output = new Output(json: true, verbose: false, trace: false) { JsonStream = stream };
+        output.RawJson(w => CloudOutput.WriteArray(w, projects.EnumerateArray(), CloudOutput.Project));
+
+        var root = JsonDocument.Parse(stream.ToArray()).RootElement;
+        Assert.Equal(JsonValueKind.Array, root.ValueKind);
+        var project = Assert.Single(root.EnumerateArray());
+        Assert.Equal(CloudOutput.Project.Select(f => f.JsonName), project.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("aue", project.GetProperty("region").GetString());
+        Assert.Equal(0, project.GetProperty("sitecoreMajorVersion").GetInt32());
+        Assert.False(project.TryGetProperty("schemaVersion", out _));
+    }
+
+    [Fact]
+    public void Prints_null_for_a_command_without_a_result_as_the_Official_CLI_does()
+    {
+        using var stream = new MemoryStream();
+        new Output(json: true, verbose: false, trace: false) { JsonStream = stream }.RawJson(w => w.WriteNullValue());
+        Assert.Equal("null\n", System.Text.Encoding.UTF8.GetString(stream.ToArray()));
+    }
+
+    [Fact]
     public void Writes_deployment_statuses_as_numbers_and_shows_them_as_names()
     {
         var deployment = JsonDocument.Parse("""{"id":"d1","calculatedStatus":"Failed","buildStatus":2,"createdAt":"2023-09-13T01:06:52.3186832Z"}""").RootElement;
