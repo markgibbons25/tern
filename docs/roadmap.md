@@ -17,10 +17,9 @@ Versions stay at `0.1.x`, and finishing a milestone does not bump them. Moving p
 2. **M2: write side.** Push, `apply`, Watch, `ser package`.
 3. **M3: the other CM commands.** `publish`, `index`, `dbcleanup`, `itemres`.
 4. **M4: SitecoreAI.** The `cloud` commands, against the Deploy API.
-5. **M5: beyond Management Services.** Built: `script run`, `authoring query` and `item set`. Still open: on-prem testing on XM 10.4.
-   - On-prem testing on XM 10.4.
-   - Running SPE scripts with their output captured.
-   - Non-admin authoring through the authoring GraphQL API.
+5. **M5: beyond Management Services.**
+   - Built: running SPE scripts with their output captured (`script run`), and authoring without an Administrator through the Authoring GraphQL API (`authoring query`, `item set`).
+   - Still open: on-prem testing on XM 10.4.
 
 ## Platform compatibility
 
