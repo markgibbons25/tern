@@ -1,0 +1,4 @@
+{
+  "namespace": "TernTests",
+  "items": { "includes": [ { "name": "tern-tests", "path": "/sitecore/system/Modules/Tern Tests", "scope": "ItemAndDescendants", "allowedPushOperations": "CreateUpdateAndDelete" } ] }
+}

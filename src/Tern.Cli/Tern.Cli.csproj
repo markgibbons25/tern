@@ -4,6 +4,7 @@
     <AssemblyName>tern</AssemblyName>
     <RootNamespace>Tern.Cli</RootNamespace>
     <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>tern</ToolCommandName>
     <PackageId>Tern.Cli</PackageId>

@@ -1,0 +1,56 @@
+name: CI
+
+# Unit tests, golden-file tests and the Native AOT build run here. Differential and integration
+# tests need a CM and credentials, so they run on a developer machine instead (ADR 0009).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Tern.slnx -c Release
+
+      - name: Test
+        run: dotnet test --solution Tern.slnx -c Release --no-build
+
+      - name: Publish (Native AOT)
+        run: dotnet publish src/Tern.Cli -c Release -r ${{ matrix.rid }} -o artifacts/${{ matrix.rid }}
+
+      - name: Smoke test the native binary
+        shell: bash
+        run: |
+          bin=artifacts/${{ matrix.rid }}/tern
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          "$bin" --version
+          "$bin" ser validate -c tests/fixtures/push-basic/s0
+          "$bin" ser info -c tests/fixtures/push-basic/s1 --json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tern-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
+          if-no-files-found: error

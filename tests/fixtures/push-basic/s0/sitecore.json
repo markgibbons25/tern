@@ -1,0 +1,6 @@
+{
+  "modules": ["*.module.json"],
+  "plugins": ["Sitecore.DevEx.Extensibility.Serialization@6.0.23", "Sitecore.DevEx.Extensibility.Publishing@6.0.23", "Sitecore.DevEx.Extensibility.Indexing@6.0.23", "Sitecore.DevEx.Extensibility.ResourcePackage@6.0.23", "Sitecore.DevEx.Extensibility.Database@6.0.23"],
+  "serialization": { "defaultMaxRelativeItemPathLength": 100, "defaultModuleRelativeSerializationPath": "items" },
+  "settings": { "telemetryEnabled": false }
+}

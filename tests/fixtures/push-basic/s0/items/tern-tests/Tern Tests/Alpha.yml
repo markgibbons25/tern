@@ -1,0 +1,25 @@
+﻿---
+ID: "7e5a0002-0000-4000-8000-000000000002"
+Parent: "7e5a0001-0000-4000-8000-000000000001"
+Template: "76036f5e-cbce-46d1-af0a-4143f9b557aa"
+Path: /sitecore/system/Modules/Tern Tests/Alpha
+Languages:
+- Language: "de-DE"
+  Versions:
+  - Version: 1
+    Fields:
+    - ID: "75577384-3c97-45da-a847-81b00500e250"
+      Hint: Title
+      Value: Alpha DE
+- Language: en
+  Versions:
+  - Version: 1
+    Fields:
+    - ID: "75577384-3c97-45da-a847-81b00500e250"
+      Hint: Title
+      Value: Alpha title
+    - ID: "a60acd61-a6db-4182-8329-c957982cec74"
+      Hint: Text
+      Value: |
+        <p>Hello</p>
+        <p>World</p>

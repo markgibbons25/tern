@@ -11,6 +11,6 @@
     <ProjectReference Include="..\..\src\Tern.Cli\Tern.Cli.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Golden\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\**\*" LinkBase="fixtures" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

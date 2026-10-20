@@ -6,3 +6,4 @@ obj/
 *.user
 artifacts/
 .sitecore/user.json
+.scindex
