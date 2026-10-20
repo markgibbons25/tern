@@ -8,6 +8,9 @@ namespace Tern.Core.Planning;
 public interface ITreeApplier
 {
     Task<List<AppliedOperation>> ApplyAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, bool checkPreconditions, CancellationToken ct);
+
+    /// <summary>Throws <see cref="PlanOutOfDateException"/> if any target item no longer has the Signature the Plan expected.</summary>
+    Task CheckPreconditionsAsync(Include include, IReadOnlyList<PlanOperation> operations, CancellationToken ct);
 }
 
 public sealed record PlanResult(Plan Plan, IReadOnlyList<IncludePlan> Includes, long NodesEvaluated);
@@ -40,14 +43,27 @@ public sealed class SyncEngine(IItemTree source, IItemTree target, ITreeApplier 
     /// </summary>
     public async Task<List<AppliedOperation>> ApplyAsync(Plan plan, IReadOnlyList<Include> includes, bool checkPreconditions, CancellationToken ct)
     {
-        var applied = new List<AppliedOperation>();
-        foreach (var group in plan.Operations.GroupBy(o => (o.Module, o.Include)))
+        var groups = plan.Operations.GroupBy(o => (o.Module, o.Include)).Select(g =>
+            (Include: includes.FirstOrDefault(i => i.Module.Namespace == g.Key.Module && i.Name == g.Key.Include)
+                ?? throw new PlanOutOfDateException($"The Plan refers to include {g.Key.Module}/{g.Key.Include}, which is not in the current configuration."),
+             Operations: g.ToList())).ToList();
+
+        // Every precondition is checked before anything is written, so a stale Plan changes nothing.
+        if (checkPreconditions)
         {
-            var include = includes.FirstOrDefault(i => i.Module.Namespace == group.Key.Module && i.Name == group.Key.Include)
-                ?? throw new PlanOutOfDateException($"The Plan refers to include {group.Key.Module}/{group.Key.Include}, which is not in the current configuration.");
-            var ops = group.ToList();
+            foreach (var (include, ops) in groups)
+            {
+                await applier.CheckPreconditionsAsync(include, ops, ct);
+            }
+        }
+
+        // Source data for every group is fetched, and checked, before the first write.
+        var prepared = new List<(Include Include, List<PlanOperation> Operations, IReadOnlyDictionary<Guid, ItemData> Data)>();
+        foreach (var (include, ops) in groups)
+        {
             var needData = ops.Where(o => o.Action is PlanAction.Create or PlanAction.Update).Select(o => o.Id).Distinct().ToList();
             var data = needData.Count == 0 ? new Dictionary<Guid, ItemData>() : await source.GetItemsAsync(include, needData, ct);
+            prepared.Add((include, ops, data));
             if (checkPreconditions)
             {
                 foreach (var op in ops.Where(o => o.Action is PlanAction.Create or PlanAction.Update))
@@ -62,6 +78,11 @@ public sealed class SyncEngine(IItemTree source, IItemTree target, ITreeApplier 
                     }
                 }
             }
+        }
+
+        var applied = new List<AppliedOperation>();
+        foreach (var (include, ops, data) in prepared)
+        {
             applied.AddRange(await applier.ApplyAsync(include, ops, data, checkPreconditions, ct));
         }
         return applied;

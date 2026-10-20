@@ -18,6 +18,20 @@ public sealed class FileApplier(FileItemTree files, Func<Guid, bool> includeFiel
 {
     private readonly string _newLine = newLine ?? Environment.NewLine;
 
+    public Task CheckPreconditionsAsync(Include include, IReadOnlyList<PlanOperation> operations, CancellationToken ct)
+    {
+        var index = files.Files(include).GroupBy(f => f.Item.Id).ToDictionary(g => g.Key, g => g.First().Item);
+        foreach (var op in operations)
+        {
+            var current = index.TryGetValue(op.Id, out var item) ? SignatureGenerator.Create(item) : null;
+            if (op.Action == PlanAction.Create ? current is not null : current != op.ExpectedSignature)
+            {
+                throw new PlanOutOfDateException($"{op.Path} changed on disk since the Plan was made. Make a new Plan.");
+            }
+        }
+        return Task.CompletedTask;
+    }
+
     public Task<List<AppliedOperation>> ApplyAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, bool checkPreconditions, CancellationToken ct) =>
         Task.FromResult(Apply(include, operations, sourceItems, checkPreconditions));
 

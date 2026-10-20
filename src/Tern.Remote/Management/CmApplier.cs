@@ -121,7 +121,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         return metadata[0].FirstOrDefault()?.ParentId ?? op.ParentId;
     }
 
-    private async Task CheckPreconditionsAsync(Include include, IReadOnlyList<PlanOperation> operations, CancellationToken ct)
+    public async Task CheckPreconditionsAsync(Include include, IReadOnlyList<PlanOperation> operations, CancellationToken ct)
     {
         var requests = operations.Select(o => new SerializeRequest(o.Id.ToString("D"), include.Database, TreeScope.SingleItem, excludedFieldIds)).ToList();
         var current = await api.GetMetadataAsync(requests, ct);

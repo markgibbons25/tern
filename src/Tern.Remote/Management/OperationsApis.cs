@@ -5,9 +5,13 @@ namespace Tern.Remote.Management;
 /// <summary>A server-side job: a publish, an index rebuild or a database cleanup task.</summary>
 public sealed record JobStatus(string Id, string? Name, long ProcessedCount, string StateCode, string StateName)
 {
-    public bool IsFinished => StateName is "Finished" or "Failed" or "Canceled" or "Cancelled" || StateCode is "Finished" or "Failed" or "Canceled";
+    public bool IsFinished => IsTerminal(StateName) || IsTerminal(StateCode);
 
-    public bool IsFailed => StateName is "Failed" || StateCode is "Failed";
+    public bool IsFailed => StateName.Equals("Failed", StringComparison.OrdinalIgnoreCase) || StateCode.Equals("Failed", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Job services name their end states differently: cleanup says Completed, publishing Finished.</summary>
+    public static bool IsTerminal(string state) =>
+        state.ToLowerInvariant() is "finished" or "completed" or "succeeded" or "done" or "failed" or "canceled" or "cancelled" or "aborted";
 
     internal static JobStatus Parse(JsonElement e, string? nameProperty = null) => new(
         e.GetProperty("id").ValueKind == JsonValueKind.String ? e.GetProperty("id").GetString()! : e.GetProperty("id").GetRawText(),
@@ -170,7 +174,7 @@ public sealed class DatabaseApi(ManagementClient client)
     }
 }
 
-public sealed record CleanupResult(string Database, string ItemsInfo, long Count);
+public sealed record CleanupResult(string Database, IReadOnlyList<string> Items, long Count);
 
 public sealed class ResourcePackageApi(ManagementClient client)
 {
@@ -198,7 +202,10 @@ public sealed class ResourcePackageApi(ManagementClient client)
         {
             foreach (var x in r.EnumerateArray())
             {
-                results.Add(new CleanupResult(x.GetProperty("database").GetString() ?? string.Empty, x.TryGetProperty("itemsInfo", out var i) ? i.ToString() : string.Empty, x.TryGetProperty("count", out var c) && c.TryGetInt64(out var n) ? n : 0));
+                results.Add(new CleanupResult(
+                    x.GetProperty("database").GetString() ?? string.Empty,
+                    x.TryGetProperty("itemsInfo", out var i) ? PublishingApi.Strings(i) : [],
+                    x.TryGetProperty("count", out var c) && c.TryGetInt64(out var n) ? n : 0));
             }
         }
         return (s.GetProperty("stateName").GetString() ?? string.Empty, s.TryGetProperty("errorMessage", out var e) ? e.GetString() : null, results);

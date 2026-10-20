@@ -113,10 +113,14 @@ public static class ItemResCommands
                 await Task.Delay(750, token);
                 status = await api.StatusAsync(job, token);
             }
-            while (status.State is not ("Finished" or "Failed" or "Canceled"));
+            while (!JobStatus.IsTerminal(status.State));
             foreach (var r in status.Results)
             {
-                session.Output.Line($"[{r.Database}] {r.Count} items: {r.ItemsInfo}");
+                session.Output.Line($"Cleanup of resource items is finished for '{r.Database}' database. Removed: {r.Count} item(s).");
+                foreach (var item in r.Items)
+                {
+                    session.Output.Line($"[{r.Database}] [D] {item}");
+                }
             }
             session.Output.Document("itemres cleanup", w =>
             {
@@ -128,7 +132,12 @@ public static class ItemResCommands
                     w.WriteStartObject();
                     w.WriteString("database", r.Database);
                     w.WriteNumber("count", r.Count);
-                    w.WriteString("items", r.ItemsInfo);
+                    w.WriteStartArray("items");
+                    foreach (var item in r.Items)
+                    {
+                        w.WriteStringValue(item);
+                    }
+                    w.WriteEndArray();
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();

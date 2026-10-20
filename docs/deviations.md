@@ -11,6 +11,7 @@ Tern produces the same result as the Official CLI wherever the Official CLI succ
 | D5 | Version handshake with Management Services | Claims its own version; rejected by a server with a higher major version | Opts out of the comparison and detects features from the schema ([ADR 0006](adr/0006-feature-detection-not-version-claims.md)) | `ManagementClient` |
 | D6 | Credentials for CI and agents | None from the environment | `TERN_<ENDPOINT>_CLIENT_ID`/`_CLIENT_SECRET` (or `TERN_CLIENT_ID`/`TERN_CLIENT_SECRET`), never written to disk | `EnvironmentCredentials` |
 | D7 | `plugin add/remove/init` | Download NuGet plugins | Do nothing: the plugins' commands are built in ([ADR 0002](adr/0002-native-aot-and-executable-extensions.md)) | — |
+| D9 | `ser diff` between two Endpoints that borrow their login through `ref` (for example `cloud environment connect` ones) | Fails with "You are not authenticated (missing access token)" | Uses the referenced login, as every other command does | Run against a local container and a SitecoreAI CM, connected through `ref`, on 2026-10-20 |
 | D8 | `cloud environment log download` without `-o`/`--outputpath` | Fails: the output path is required | Saves the file in the current folder | `CloudCommands.SaveFile` |
 
 ## Where Tern matches a known Official CLI bug
