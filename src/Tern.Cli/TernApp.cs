@@ -36,6 +36,8 @@ public static class TernApp
         root.Subcommands.Add(PublishCommands.BuildIndex());
         root.Subcommands.Add(PublishCommands.BuildDbCleanup());
         root.Subcommands.Add(ItemResCommands.Build());
+        root.Subcommands.Add(ScriptCommands.Script());
+        root.Subcommands.Add(ScriptCommands.Authoring());
         root.Subcommands.Add(CloudCommands.Build());
 
         root.SetAction(parse =>

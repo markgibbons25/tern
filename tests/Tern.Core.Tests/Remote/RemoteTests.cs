@@ -91,3 +91,22 @@ public class UpdatePayloadTests
         Assert.Equal("CHANGE_TEMPLATE", doc.RootElement[0].GetProperty("command").GetString());
     }
 }
+
+public class SpeTokenTests
+{
+    [Fact]
+    public void Signs_an_HS256_token_SPE_can_verify()
+    {
+        var token = Tern.Remote.Spe.SpeClient.Token(new Tern.Remote.Spe.SpeCredentials.SharedSecret("sitecore\admin", "secret"), "https://cm.example/", DateTimeOffset.FromUnixTimeSeconds(1_000));
+        var parts = token.Split('.');
+        Assert.Equal(3, parts.Length);
+        var signature = System.Security.Cryptography.HMACSHA256.HashData("secret"u8.ToArray(), System.Text.Encoding.UTF8.GetBytes(parts[0] + "." + parts[1]));
+        Assert.Equal(Convert.ToBase64String(signature).TrimEnd('=').Replace('+', '-').Replace('/', '_'), parts[2]);
+        var payload = parts[1].Replace('-', '+').Replace('_', '/');
+        payload += new string('=', (4 - payload.Length % 4) % 4);
+        using var doc = JsonDocument.Parse(Convert.FromBase64String(payload));
+        Assert.Equal("SPE Remoting", doc.RootElement.GetProperty("iss").GetString());
+        Assert.Equal("https://cm.example", doc.RootElement.GetProperty("aud").GetString());
+        Assert.Equal(1_030, doc.RootElement.GetProperty("exp").GetInt64());
+    }
+}

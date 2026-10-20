@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/bench/">
-    <Project Path="bench/Tern.Benchmarks/Tern.Benchmarks.csproj" />
-  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Tern.Cli/Tern.Cli.csproj" />
     <Project Path="src/Tern.Core/Tern.Core.csproj" />

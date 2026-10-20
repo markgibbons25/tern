@@ -5,6 +5,5 @@
   <ItemGroup>
     <PackageVersion Include="System.CommandLine" Version="2.0.13" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 </Project>

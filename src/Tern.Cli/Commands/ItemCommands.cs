@@ -21,6 +21,7 @@ public static class ItemCommands
         var item = new Command("item", "Read items directly from a CM");
         item.Subcommands.Add(Get());
         item.Subcommands.Add(Query());
+        item.Subcommands.Add(ScriptCommands.ItemSet());
         return item;
     }
 
