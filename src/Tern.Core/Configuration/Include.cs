@@ -55,7 +55,7 @@ public sealed class Include
     public IReadOnlyList<IncludeRule> Rules { get; init; } = [];
 
     /// <summary>The Module this Include belongs to.</summary>
-    public Module Module { get; internal set; } = null!;
+    public Module Module { get; set; } = null!;
 
     /// <summary>The folder that holds this Include's Item files.</summary>
     public string PhysicalRoot { get; internal set; } = string.Empty;

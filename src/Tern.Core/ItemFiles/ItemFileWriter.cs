@@ -108,10 +108,10 @@ public static class ItemFileWriter
         w.Map("Value", field.Value);
     }
 
-    internal static string Format(Guid id) => id.ToString("D", CultureInfo.InvariantCulture);
+    public static string Format(Guid id) => id.ToString("D", CultureInfo.InvariantCulture);
 
     /// <summary>A minimal line writer that mirrors the Official CLI's map, list and block rules.</summary>
-    internal sealed class Writer(string newLine)
+    public sealed class Writer(string newLine)
     {
         private readonly StringBuilder _sb = new();
 
