@@ -271,6 +271,20 @@ public static class LoginCommands
         foreach (var name in new[] { "add", "remove", "list", "init" })
         {
             var sub = new Command(name, $"Not needed with Tern: the plugin commands are built in");
+            // The Official CLI's options are accepted and ignored, so scripts that pass them still run.
+            if (name is "add" or "remove")
+            {
+                sub.Options.Add(new Option<string?>("--name", "-n") { Description = name == "add" ? "Name of the plugin to install into the current project" : "Name of the plugin to remove from the current project" });
+            }
+            if (name is "add" or "init")
+            {
+                sub.Options.Add(new Option<string?>("--version") { Description = name == "add" ? "Version of the plugin to install" : "Version of the plugins to init" });
+            }
+            if (name == "init")
+            {
+                sub.Options.Add(new Option<bool>("--overwrite") { Description = "Allow overwriting existing plugin" });
+                sub.Options.Add(new Option<bool>("--prerelease") { Description = "Allow pre-release versions for plugins" });
+            }
             sub.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, _) =>
             {
                 session.Output.Info("Tern does not load plugins; the serialization, publishing, indexing, resource package, database and cloud commands are built in (ADR 0002).");

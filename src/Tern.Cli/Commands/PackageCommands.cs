@@ -47,7 +47,7 @@ public static class PackageCommands
             }
             var modules = session.SelectModules(parse.GetValue(include)!, parse.GetValue(exclude)!);
             var excluded = session.ExcludedFields(modules).ToHashSet();
-            var files = new FileItemTree(id => !excluded.Contains(id));
+            var files = new FileItemTree(id => !excluded.Contains(id), index: session.FileIndex(excluded));
             var count = Write(path, session.Root, modules, files);
             session.Output.Info($"Created {path} with {count} items.");
             session.Output.Document("ser package create", w =>
@@ -137,23 +137,23 @@ public static class PackageCommands
             foreach (var include in module.Includes)
             {
                 var baseDir = Path.GetDirectoryName(include.PhysicalRoot)!;
-                foreach (var file in files.Files(include).Where(f => include.IncludesPath(ItemPath.Parse(f.Item.Path))))
+                foreach (var file in files.Files(include).Where(f => include.IncludesPath(ItemPath.Parse(f.Path))))
                 {
                     var relative = Path.GetRelativePath(baseDir, file.PhysicalPath);
                     var entryPath = Path.Combine(module.Namespace, "serialization", relative);
                     var created = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                     using (var e = created.Open())
                     {
-                        e.Write(ItemFileWriter.ToBytes(file.Item));
+                        e.Write(ItemFileWriter.ToBytes(file.ReadItem()));
                     }
                     var w = new ItemFileWriter.Writer(Environment.NewLine);
                     w.Line("---");
                     w.Map("Entry", entryPath);
                     w.Map("DB", include.Database);
-                    w.Map("ID", ItemFileWriter.Format(file.Item.Id));
-                    w.Map("Parent", ItemFileWriter.Format(file.Item.ParentId));
-                    w.Map("Template", ItemFileWriter.Format(file.Item.TemplateId));
-                    w.Map("Path", file.Item.Path);
+                    w.Map("ID", ItemFileWriter.Format(file.Id));
+                    w.Map("Parent", ItemFileWriter.Format(file.ParentId));
+                    w.Map("Template", ItemFileWriter.Format(file.TemplateId));
+                    w.Map("Path", file.Path);
                     w.Map("Signature", file.Signature);
                     index.Append(w);
                     count++;

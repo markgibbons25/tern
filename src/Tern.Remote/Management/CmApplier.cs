@@ -12,38 +12,90 @@ namespace Tern.Remote.Management;
 /// a Push or an Endpoint-to-Endpoint push. Commands go out in serial batches; the batch size is a
 /// setting because every batch costs the server a template-engine reset and index updates (ADR 0005).
 /// </summary>
-public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excludedFieldIds, int batchSize, Action<string>? log = null) : ITreeApplier
+public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excludedFieldIds, int batchSize, Action<string>? log = null) : IStreamingTreeApplier
 {
     private static readonly Guid TemplateTemplateId = new("ab86861a-6030-46c5-b394-e8f99e8b87db");
 
     private const string Mutation = "mutation($commands: [ItemCommand!]!, $logLevel: SerializationResultLogLevel) { executeSerializationCommands(commands: $commands minimumLogLevel: $logLevel) { name success messages { logLevel message eventID { id name } } } }";
 
+    /// <summary>
+    /// A batch also ends at this much command data, so a batch of media items stays a reasonable
+    /// request however large the blobs are. A single larger command still goes, on its own.
+    /// </summary>
+    private const long MaxBatchBytes = 8 * 1024 * 1024;
+
+    /// <summary>The CM takes one batch at a time, so Includes are applied one after another.</summary>
+    public bool ConcurrentIncludes => false;
+
     public async Task<List<AppliedOperation>> ApplyAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, bool checkPreconditions, CancellationToken ct)
     {
-        var targetIds = operations.Where(o => o.Action != PlanAction.Create).Select(o => o.Id).Distinct().ToList();
-        var updates = operations.Where(o => o.Action == PlanAction.Update).Select(o => o.Id).Distinct().ToList();
-        var targetData = updates.Count == 0 ? new Dictionary<Guid, ItemData>() : await api.GetItemDataAsync(include.Database, updates, excludedFieldIds, ct);
-
         if (checkPreconditions)
         {
             await CheckPreconditionsAsync(include, operations, ct);
         }
+        return await SendAsync(include, operations, sourceItems, ct);
+    }
 
-        var commands = new List<(PlanOperation Op, Action<Utf8JsonWriter> Write)>();
+    /// <summary>
+    /// Applies the operations a batch at a time, reading the source data for each batch just
+    /// before it is sent, so a push holds one batch of item data rather than all of it.
+    /// </summary>
+    public async Task<List<AppliedOperation>> ApplyStreamingAsync(Include include, IReadOnlyList<PlanOperation> operations, Func<IReadOnlyCollection<Guid>, Func<IReadOnlyList<ItemData>, Task>, Task> stream, bool checkPreconditions, CancellationToken ct)
+    {
+        if (checkPreconditions)
+        {
+            await CheckPreconditionsAsync(include, operations, ct);
+        }
+        var applied = new List<AppliedOperation>();
+        foreach (var chunk in operations.Chunk(Math.Max(1, batchSize)))
+        {
+            var ids = chunk.Where(o => o.Action is PlanAction.Create or PlanAction.Update).Select(o => o.Id).ToHashSet();
+            var data = new System.Collections.Concurrent.ConcurrentDictionary<Guid, ItemData>();
+            if (ids.Count > 0)
+            {
+                await stream(ids, batch =>
+                {
+                    foreach (var item in batch)
+                    {
+                        data[item.Id] = item;
+                    }
+                    return Task.CompletedTask;
+                });
+            }
+            applied.AddRange(await SendAsync(include, chunk, data, ct));
+        }
+        return applied;
+    }
+
+    private async Task<List<AppliedOperation>> SendAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, CancellationToken ct)
+    {
+        var updates = operations.Where(o => o.Action == PlanAction.Update).Select(o => o.Id).Distinct().ToList();
+        var targetData = updates.Count == 0 ? new Dictionary<Guid, ItemData>() : await api.GetItemDataAsync(include.Database, updates, excludedFieldIds, ct);
+        var currentParents = await CurrentParentsAsync(include, operations.Where(o => o.Action == PlanAction.Move).ToList(), ct);
+
+        ItemData Source(PlanOperation op) => sourceItems.GetValueOrDefault(op.Id)
+            ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be {(op.Action == PlanAction.Create ? "created" : "updated")}, in source data store. This should never occur.");
+
+        // A command's size is known (or, for a create, estimated) up front, so a batch can be cut by
+        // size as well as count; a create's data is serialized only as its request is written.
+        var commands = new List<Command>();
+        void Add(PlanOperation op, Guid parent, string command, string data) =>
+            commands.Add(new Command(op, data.Length + 200, w => WriteCommand(w, op.Id, parent, include.Database, command, data)));
         foreach (var op in operations)
         {
             switch (op.Action)
             {
                 case PlanAction.Create:
                 {
-                    var item = sourceItems[op.Id];
+                    var item = Source(op);
                     WarnEmptyVersions(item);
-                    commands.Add((op, w => WriteCommand(w, op.Id, item.ParentId, include.Database, "CREATE", Serialize(x => ItemDataJson.Write(x, item)))));
+                    commands.Add(new Command(op, item.AllFields.Sum(f => (long)f.Value.Length + 100) + 200,
+                        w => WriteCommand(w, op.Id, item.ParentId, include.Database, "CREATE", Serialize(x => ItemDataJson.Write(x, item)))));
                     break;
                 }
                 case PlanAction.Update:
                 {
-                    var source = sourceItems[op.Id];
+                    var source = Source(op);
                     var target = targetData.GetValueOrDefault(op.Id) ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be updated, in the CM.");
                     WarnEmptyVersions(source);
                     var payload = UpdatePayload(source, target);
@@ -52,73 +104,119 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
                         log?.Invoke($"Skipping empty update command [U] {op.Path} ({op.Id}).");
                         continue;
                     }
-                    commands.Add((op, w => WriteCommand(w, op.Id, source.ParentId, include.Database, "UPDATE", payload)));
+                    commands.Add(new Command(op, payload.Length + 200, w => WriteCommand(w, op.Id, source.ParentId, include.Database, "UPDATE", payload)));
                     break;
                 }
                 case PlanAction.Move:
-                {
                     // The command addresses the item where it is now; its data is the new parent.
-                    var currentParent = await CurrentParentAsync(include, op, ct);
-                    commands.Add((op, w => WriteCommand(w, op.Id, currentParent, include.Database, "MOVE", Serialize(x => x.WriteStringValue(op.ParentId)))));
+                    Add(op, currentParents.GetValueOrDefault(op.Id, op.ParentId), "MOVE", Serialize(x => x.WriteStringValue(op.ParentId)));
                     break;
-                }
                 case PlanAction.Rename:
                 {
                     var name = ItemPath.Parse(op.Path).Name;
-                    commands.Add((op, w => WriteCommand(w, op.Id, op.ParentId, include.Database, "RENAME", Serialize(x => x.WriteStringValue(name)))));
+                    Add(op, op.ParentId, "RENAME", Serialize(x => x.WriteStringValue(name)));
                     break;
                 }
                 case PlanAction.Delete:
-                    commands.Add((op, w => WriteCommand(w, op.Id, op.ParentId, include.Database, "RECYCLE", "{}")));
+                    Add(op, op.ParentId, "RECYCLE", "{}");
                     break;
             }
         }
 
+        // One batch at a time: the CM's executeSerializationCommands is not safe to run concurrently
+        // (two batches at once fail inside the server with NullReferenceException and
+        // ArgumentOutOfRangeException, and can leave a batch half written).
         var applied = new List<AppliedOperation>();
-        foreach (var batch in commands.Chunk(Math.Max(1, batchSize)))
+        foreach (var batch in Batches(commands))
         {
-            using var doc = await api.Client.QueryAsync(Mutation, w =>
+            foreach (var message in await SendBatchAsync(batch, ct))
             {
-                w.WriteStartArray("commands");
-                foreach (var (_, write) in batch)
-                {
-                    write(w);
-                }
-                w.WriteEndArray();
-                w.WriteString("logLevel", "Information");
-            }, ct);
-            var results = doc.RootElement.GetProperty("data").GetProperty("executeSerializationCommands");
-            var failures = new List<string>();
-            foreach (var r in results.EnumerateArray())
-            {
-                var messages = r.TryGetProperty("messages", out var m) && m.ValueKind == JsonValueKind.Array
-                    ? m.EnumerateArray().Select(x => x.TryGetProperty("message", out var t) ? t.GetString() : null).Where(x => !string.IsNullOrEmpty(x)).ToList()
-                    : [];
-                if (!r.GetProperty("success").GetBoolean())
-                {
-                    failures.Add($"{r.GetProperty("name").GetString()}: {string.Join("; ", messages)}");
-                }
-                else
-                {
-                    foreach (var message in messages)
-                    {
-                        log?.Invoke(message!);
-                    }
-                }
+                log?.Invoke(message);
             }
-            if (failures.Count > 0)
-            {
-                throw new ManagementException("The CM rejected a write: " + string.Join(Environment.NewLine, failures));
-            }
-            applied.AddRange(batch.Select(b => new AppliedOperation(b.Op, null)));
+            applied.AddRange(batch.Select(c => new AppliedOperation(c.Op, null)));
         }
         return applied;
     }
 
-    private async Task<Guid> CurrentParentAsync(Include include, PlanOperation op, CancellationToken ct)
+    private sealed record Command(PlanOperation Op, long Size, Action<Utf8JsonWriter> Write);
+
+    /// <summary>Sends one batch; returns its log messages, or throws with every command the CM rejected.</summary>
+    private async Task<List<string>> SendBatchAsync(List<Command> batch, CancellationToken ct)
     {
-        var metadata = await api.GetMetadataAsync([new SerializeRequest(op.Id.ToString("D"), include.Database, TreeScope.SingleItem, excludedFieldIds)], ct);
-        return metadata[0].FirstOrDefault()?.ParentId ?? op.ParentId;
+        using var doc = await api.Client.QueryAsync(Mutation, w =>
+        {
+            w.WriteStartArray("commands");
+            foreach (var c in batch)
+            {
+                c.Write(w);
+            }
+            w.WriteEndArray();
+            w.WriteString("logLevel", "Information");
+        }, ct);
+        var results = doc.RootElement.GetProperty("data").GetProperty("executeSerializationCommands");
+        var failures = new List<string>();
+        var logged = new List<string>();
+        foreach (var r in results.EnumerateArray())
+        {
+            var messages = r.TryGetProperty("messages", out var m) && m.ValueKind == JsonValueKind.Array
+                ? m.EnumerateArray().Select(x => x.TryGetProperty("message", out var t) ? t.GetString() : null).Where(x => !string.IsNullOrEmpty(x)).ToList()
+                : [];
+            if (!r.GetProperty("success").GetBoolean())
+            {
+                failures.Add($"{r.GetProperty("name").GetString()}: {string.Join("; ", messages)}");
+            }
+            else
+            {
+                logged.AddRange(messages!);
+            }
+        }
+        if (failures.Count > 0)
+        {
+            throw new ManagementException("The CM rejected a write: " + string.Join(Environment.NewLine, failures));
+        }
+        return logged;
+    }
+
+    /// <summary>Where each moving item is now, looked up for all the moves together.</summary>
+    private async Task<Dictionary<Guid, Guid>> CurrentParentsAsync(Include include, IReadOnlyList<PlanOperation> moves, CancellationToken ct)
+    {
+        var parents = new Dictionary<Guid, Guid>();
+        if (moves.Count == 0)
+        {
+            return parents;
+        }
+        var metadata = await api.GetMetadataAsync(moves.Select(m => new SerializeRequest(m.Id.ToString("D"), include.Database, TreeScope.SingleItem, excludedFieldIds)).ToList(), ct);
+        for (var n = 0; n < moves.Count; n++)
+        {
+            if (metadata[n].FirstOrDefault() is { } current)
+            {
+                parents[moves[n].Id] = current.ParentId;
+            }
+        }
+        return parents;
+    }
+
+    /// <summary>Consecutive commands, cut at the batch size or at <see cref="MaxBatchBytes"/> of data, whichever comes first.</summary>
+    private IEnumerable<List<Command>> Batches(List<Command> commands)
+    {
+        var size = Math.Max(1, batchSize);
+        var batch = new List<Command>();
+        long bytes = 0;
+        foreach (var command in commands)
+        {
+            if (batch.Count > 0 && (batch.Count >= size || bytes + command.Size > MaxBatchBytes))
+            {
+                yield return batch;
+                batch = [];
+                bytes = 0;
+            }
+            batch.Add(command);
+            bytes += command.Size;
+        }
+        if (batch.Count > 0)
+        {
+            yield return batch;
+        }
     }
 
     public async Task CheckPreconditionsAsync(Include include, IReadOnlyList<PlanOperation> operations, CancellationToken ct)

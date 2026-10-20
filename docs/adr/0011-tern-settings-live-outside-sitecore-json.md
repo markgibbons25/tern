@@ -7,3 +7,5 @@ Tern has settings of its own: batch size, parallelism, keychain use and so on. T
 3. a project-level `tern.json` next to `sitecore.json`, which is committed
 4. `~/.config/tern/settings.json`
 5. built-in defaults
+
+The settings and their defaults are listed in [settings.md](../settings.md).

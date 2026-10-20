@@ -27,10 +27,10 @@ public static class SyncRunner
         var excluded = session.ExcludedFields(modules).ToHashSet();
         bool IncludeField(Guid id) => !excluded.Contains(id);
 
-        var files = new FileItemTree(IncludeField);
-        var validation = request.SkipValidation ? Task.FromResult(new List<ValidationIssue>()) : Task.Run(() => FileValidator.Validate(includes), ct);
+        var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
+        var validation = request.SkipValidation ? Task.FromResult(new List<ValidationIssue>()) : Task.Run(() => FileValidator.Validate(includes, files), ct);
         var cm = new CmItemTree(session.Serialization(endpoint), [.. excluded], endpoint.Name);
-        await cm.PrefetchAsync(includes, ct);
+        await cm.PrefetchAsync(includes, ct, FileItemTree.CountFiles);
         output.Debug($"Prefetched metadata for {includes.Count} includes in {watch.ElapsedMilliseconds} ms ({cm.Api.Client.RequestCount} requests).");
 
         var engine = new SyncEngine(cm, files, new FileApplier(files, IncludeField), PlanDirection.Pull);
@@ -48,6 +48,14 @@ public static class SyncRunner
         }
 
         var exit = await FinishAsync(session, request, engine, result, includes, "ser pull", watch, ct);
+        if (!request.WhatIf && request.PlanOut is null)
+        {
+            // The Official CLI leaves a folder for every Include, even one with no items yet.
+            foreach (var include in includes)
+            {
+                Directory.CreateDirectory(include.PhysicalRoot);
+            }
+        }
         var security = new SecuritySync(new SecurityApi(cm.Api.Client), session.Root);
         await RunSecurityAsync(output, "roles", "role", () => security.PlanRolePullAsync(modules, ct), request, ct);
         await RunSecurityAsync(output, "users", "user", () => security.PlanUserPullAsync(modules, ct), request, ct);

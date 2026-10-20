@@ -141,7 +141,9 @@ public static class PublishCommands
             ("--rd", "--rebuild-descendants", "rebuild-descendants", "Rebuild the descendants table"),
         };
         var cmd = new Command("dbcleanup", "Run database cleanup tasks") { environment, db };
-        var options = tasks.Select(t => (Option: new Option<bool>(t.Flag, t.Alias) { Description = t.Description }, t.Task)).ToList();
+        // The Official CLI's long names are the task names (--clean-orphanfields); the hyphenated
+        // spellings stay as aliases.
+        var options = tasks.Select(t => (Option: new Option<bool>(t.Flag, new[] { "--" + t.Task, t.Alias }.Distinct().ToArray()) { Description = t.Description }, t.Task)).ToList();
         options.ForEach(o => cmd.Options.Add(o.Option));
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {

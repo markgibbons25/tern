@@ -18,7 +18,7 @@ public static class Glob
                 continue;
             }
             var segments = pattern.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var file in Walk(rootDirectory, segments, 0))
+            foreach (var file in new Walker().Walk(rootDirectory, segments, 0, depth: 0, known: false))
             {
                 var full = Path.GetFullPath(file);
                 if (seen.Add(full))
@@ -30,65 +30,76 @@ public static class Glob
         return results;
     }
 
-    private static IEnumerable<string> Walk(string dir, string[] segments, int index)
+    /// <summary>
+    /// One pattern's walk. Each folder is listed once, files and subfolders together, and the top
+    /// levels of a <c>**</c> are walked in parallel; results keep the sorted, depth-first order.
+    /// </summary>
+    private sealed class Walker
     {
-        if (!Directory.Exists(dir) || index >= segments.Length)
+        private const int ParallelDepth = 3;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string[] Files, string[] Folders)> _listings = new(StringComparer.OrdinalIgnoreCase);
+
+        private (string[] Files, string[] Folders) List(string dir) => _listings.GetOrAdd(dir, d =>
         {
-            yield break;
-        }
-        var segment = segments[index];
-        var last = index == segments.Length - 1;
-        if (segment == "**")
-        {
-            foreach (var match in Walk(dir, segments, index + 1))
+            var files = new List<string>();
+            var folders = new List<string>();
+            foreach (var (path, isDirectory) in new System.IO.Enumeration.FileSystemEnumerable<(string, bool)>(d, (ref System.IO.Enumeration.FileSystemEntry e) => (e.ToFullPath(), e.IsDirectory), new EnumerationOptions { AttributesToSkip = 0 }))
             {
-                yield return match;
+                (isDirectory ? folders : files).Add(path);
             }
-            foreach (var sub in Sorted(Directory.EnumerateDirectories(dir)))
+            return ([.. Sorted(files)], [.. Sorted(folders)]);
+        });
+
+        // known: the folder came from its parent's listing, so it exists.
+        public List<string> Walk(string dir, string[] segments, int index, int depth, bool known)
+        {
+            var results = new List<string>();
+            if (index >= segments.Length || (!known && !Directory.Exists(dir)))
             {
-                foreach (var match in Walk(sub, segments, index))
+                return results;
+            }
+            var segment = segments[index];
+            var last = index == segments.Length - 1;
+            if (segment == "**")
+            {
+                results.AddRange(Walk(dir, segments, index + 1, depth, known: true));
+                var folders = List(dir).Folders;
+                var found = new List<string>[folders.Length];
+                if (depth < ParallelDepth && folders.Length > 1)
                 {
-                    yield return match;
+                    Parallel.For(0, folders.Length, n => found[n] = Walk(folders[n], segments, index, depth + 1, known: true));
                 }
-            }
-            yield break;
-        }
-        if (segment == ".")
-        {
-            foreach (var match in Walk(dir, segments, index + 1))
-            {
-                yield return match;
-            }
-            yield break;
-        }
-        if (segment == "..")
-        {
-            foreach (var match in Walk(Path.GetDirectoryName(Path.GetFullPath(dir)) ?? dir, segments, index + 1))
-            {
-                yield return match;
-            }
-            yield break;
-        }
-        if (last)
-        {
-            foreach (var file in Sorted(Directory.EnumerateFiles(dir)))
-            {
-                if (Wildcard.IsMatch(Path.GetFileName(file), segment))
+                else
                 {
-                    yield return file;
+                    for (var n = 0; n < folders.Length; n++)
+                    {
+                        found[n] = Walk(folders[n], segments, index, depth + 1, known: true);
+                    }
                 }
-            }
-            yield break;
-        }
-        foreach (var sub in Sorted(Directory.EnumerateDirectories(dir)))
-        {
-            if (Wildcard.IsMatch(Path.GetFileName(sub), segment))
-            {
-                foreach (var match in Walk(sub, segments, index + 1))
+                foreach (var f in found)
                 {
-                    yield return match;
+                    results.AddRange(f);
                 }
+                return results;
             }
+            if (segment == ".")
+            {
+                return Walk(dir, segments, index + 1, depth, known: true);
+            }
+            if (segment == "..")
+            {
+                return Walk(Path.GetDirectoryName(Path.GetFullPath(dir)) ?? dir, segments, index + 1, depth, known: false);
+            }
+            if (last)
+            {
+                results.AddRange(List(dir).Files.Where(file => Wildcard.IsMatch(Path.GetFileName(file), segment)));
+                return results;
+            }
+            foreach (var sub in List(dir).Folders.Where(sub => Wildcard.IsMatch(Path.GetFileName(sub), segment)))
+            {
+                results.AddRange(Walk(sub, segments, index + 1, depth + 1, known: true));
+            }
+            return results;
         }
     }
 

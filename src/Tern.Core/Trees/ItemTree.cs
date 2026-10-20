@@ -6,6 +6,9 @@ namespace Tern.Core.Trees;
 /// <summary>What a tree knows about an item without loading its fields.</summary>
 public sealed record ItemMetadata(Guid Id, Guid ParentId, Guid TemplateId, string Path, string? Signature)
 {
+    /// <summary>Whether the item has children, when the tree knows; true when it doesn't.</summary>
+    public bool HasChildren { get; init; } = true;
+
     public string Name
     {
         get
@@ -44,4 +47,12 @@ public interface IItemTree
 
     /// <summary>Full item data for the given IDs. Missing IDs are left out of the result.</summary>
     Task<IReadOnlyDictionary<Guid, ItemData>> GetItemsAsync(Include include, IReadOnlyCollection<Guid> ids, CancellationToken ct);
+
+    /// <summary>
+    /// Full item data for the given IDs, handed to <paramref name="onBatch"/> a batch at a time as
+    /// it arrives, so a caller can write each batch and let it go. Missing IDs are left out;
+    /// <paramref name="onBatch"/> may be called concurrently.
+    /// </summary>
+    async Task StreamItemsAsync(Include include, IReadOnlyCollection<Guid> ids, Func<IReadOnlyList<ItemData>, Task> onBatch, CancellationToken ct) =>
+        await onBatch((await GetItemsAsync(include, ids, ct)).Values.ToList());
 }

@@ -34,7 +34,7 @@ public static class ItemResCommands
             var modules = session.SelectModules(parse.GetValue(include)!, parse.GetValue(exclude)!);
             var excluded = session.ExcludedFields(modules).ToHashSet();
             var includes = modules.SelectMany(m => m.Includes).ToList();
-            var files = new FileItemTree(id => !excluded.Contains(id), includes);
+            var files = new FileItemTree(id => !excluded.Contains(id), includes, session.FileIndex(excluded));
             var byDatabase = new Dictionary<string, List<ItemData>>(StringComparer.OrdinalIgnoreCase);
             foreach (var inc in includes)
             {

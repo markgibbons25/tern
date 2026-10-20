@@ -123,4 +123,17 @@ public class ItemFileFormatTests
         var text = "---\n# a comment\nID: \"11111111-2222-3333-4444-555555555555\"\nParent: \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"\nTemplate: \"76036f5e-cbce-46d1-af0a-4143f9b557aa\"\nPath: /x\nDB: core\n";
         Assert.Equal("core", ItemFileReader.Read(text).Database);
     }
+
+    [Fact]
+    public void Streaming_a_file_gives_the_same_bytes_as_building_it()
+    {
+        // A value long enough to cross the encoder's buffer many times, with characters of every UTF-8 length.
+        var value = string.Concat(Enumerable.Repeat("aé€😀 line\n", 40_000));
+        var item = new ItemData { Id = Guid.NewGuid(), ParentId = Guid.NewGuid(), TemplateId = Guid.NewGuid(), Path = "/sitecore/content/Ünïcode" };
+        item.SharedFields.Add(new FieldValue(Guid.NewGuid(), "Text", null, value));
+        item.SharedFields.Add(new FieldValue(Guid.NewGuid(), "Blob", Guid.NewGuid(), Convert.ToBase64String(new byte[300_000])));
+        using var stream = new MemoryStream();
+        ItemFileWriter.WriteTo(stream, item, "\r\n");
+        Assert.Equal(ItemFileWriter.ToBytes(item, "\r\n"), stream.ToArray());
+    }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using Tern.Core.Configuration;
+using Tern.Core.Trees;
 using Tern.Remote.Auth;
 using Tern.Remote.Login;
 using Tern.Remote.Management;
@@ -67,6 +68,14 @@ public sealed class Session : IDisposable
     public IReadOnlyList<Guid> ExcludedFields(IReadOnlyList<Module> modules) =>
         Root.ExcludedFields.Concat(modules.SelectMany(m => m.ExcludedFields)).Select(f => f.FieldId).Distinct().ToList();
 
+    /// <summary>
+    /// The user's Item file index for reading files with <paramref name="excluded"/> fields left
+    /// out, or null when the <c>fileIndex</c> setting is off. Signatures depend on the excluded
+    /// fields, so each set has its own index.
+    /// </summary>
+    public FileIndexCache? FileIndex(IEnumerable<Guid> excluded) =>
+        Settings.FileIndex ? FileIndexCache.ForUser("excluded:" + string.Join(",", excluded.Select(g => g.ToString("N")).Order(StringComparer.Ordinal))) : null;
+
     public LoginStore Store => _store ??= LoginStore.Load(StorePath);
 
     /// <summary>Uses another session's login store, e.g. when installing a package from a temporary folder.</summary>
@@ -110,7 +119,20 @@ public sealed class Session : IDisposable
         {
             AliasesPerRequest = Settings.AliasesPerRequest,
             ParallelRequests = Settings.ParallelRequests,
+            SplitThreshold = Settings.SplitThreshold ?? DefaultSplitThreshold(endpoint.Host!),
         });
+
+    /// <summary>
+    /// A remote CM reads a large subtree about 10% faster as parallel requests (measured on SitecoreAI);
+    /// a local container gains nothing, so it gets one request per subtree.
+    /// </summary>
+    internal static int DefaultSplitThreshold(string host)
+    {
+        var name = Uri.TryCreate(host, UriKind.Absolute, out var uri) ? uri.Host : host;
+        var local = name.Equals("localhost", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+            || (IPAddress.TryParse(name.Trim('[', ']'), out var ip) && IPAddress.IsLoopback(ip));
+        return local ? 0 : 200;
+    }
 
     private RootConfiguration LoadRoot()
     {

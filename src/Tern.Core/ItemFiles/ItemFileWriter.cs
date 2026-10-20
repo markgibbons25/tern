@@ -23,7 +23,20 @@ public static class ItemFileWriter
         return bytes;
     }
 
-    public static string ToText(ItemData item, string newLine)
+    /// <summary>
+    /// Writes the item's file to <paramref name="stream"/>, the same bytes as <see cref="ToBytes"/>,
+    /// encoding as it goes rather than building the whole text and then a copy of it in bytes:
+    /// a media item's blob can be many megabytes.
+    /// </summary>
+    public static void WriteTo(Stream stream, ItemData item, string? newLine = null)
+    {
+        stream.Write(Bom);
+        Build(item, newLine ?? Environment.NewLine).CopyTo(stream);
+    }
+
+    public static string ToText(ItemData item, string newLine) => Build(item, newLine).ToString();
+
+    private static Writer Build(ItemData item, string newLine)
     {
         var w = new Writer(newLine);
         w.Line("---");
@@ -91,7 +104,7 @@ public static class ItemFileWriter
         {
             w.Map("DB", item.Database);
         }
-        return w.ToString();
+        return w;
     }
 
     private static void WriteField(Writer w, FieldValue field)
@@ -187,5 +200,24 @@ public static class ItemFileWriter
         }
 
         public override string ToString() => _sb.ToString();
+
+        /// <summary>Encodes the text as UTF-8 into <paramref name="stream"/>, one chunk of the builder at a time.</summary>
+        public void CopyTo(Stream stream)
+        {
+            var encoder = new UTF8Encoding(false).GetEncoder();
+            var buffer = new byte[64 * 1024];
+            foreach (var chunk in _sb.GetChunks())
+            {
+                var chars = chunk.Span;
+                while (!chars.IsEmpty)
+                {
+                    encoder.Convert(chars, buffer, flush: false, out var used, out var bytes, out _);
+                    stream.Write(buffer, 0, bytes);
+                    chars = chars[used..];
+                }
+            }
+            encoder.Convert(ReadOnlySpan<char>.Empty, buffer, flush: true, out _, out var tail, out _);
+            stream.Write(buffer, 0, tail);
+        }
     }
 }

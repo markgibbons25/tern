@@ -83,7 +83,7 @@ public static class WatchCommand
                     Volatile.Write(ref writing, true);
                     try
                     {
-                        var files = new FileItemTree(id => !excluded.Contains(id));
+                        var files = new FileItemTree(id => !excluded.Contains(id), index: session.FileIndex(excluded));
                         var cm = new CmItemTree(api, [.. excluded]);
                         await cm.PrefetchAsync(affected, stop.Token);
                         var engine = new SyncEngine(cm, files, new FileApplier(files, id => !excluded.Contains(id)), PlanDirection.Pull);

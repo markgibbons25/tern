@@ -30,7 +30,12 @@ public static class PushRunner
         var excluded = session.ExcludedFields(modules).ToHashSet();
         bool IncludeField(Guid id) => !excluded.Contains(id);
 
-        var issues = request.SkipValidation ? [] : FileValidator.Validate(includes);
+        // Validation parses the files the Plan then uses, while the CM's metadata is fetched.
+        var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
+        var api = session.Serialization(endpoint);
+        var cm = new CmItemTree(api, [.. excluded], endpoint.Name);
+        var prefetch = cm.PrefetchAsync(includes, ct, FileItemTree.CountFiles);
+        var issues = request.SkipValidation ? [] : await Task.Run(() => FileValidator.Validate(includes, files), ct);
         if (issues.Count > 0)
         {
             foreach (var issue in issues)
@@ -39,11 +44,7 @@ public static class PushRunner
             }
             throw new CliException("Filesystem integrity validation found errors in serialized files! Use the validate command to fix these.");
         }
-
-        var files = new FileItemTree(IncludeField);
-        var api = session.Serialization(endpoint);
-        var cm = new CmItemTree(api, [.. excluded], endpoint.Name);
-        await cm.PrefetchAsync(includes, ct);
+        await prefetch;
 
         var applier = new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info);
         var engine = new SyncEngine(files, cm, applier, PlanDirection.Push);

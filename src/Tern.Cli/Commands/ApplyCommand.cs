@@ -36,7 +36,7 @@ public static class ApplyCommand
                 case PlanDirection.Pull:
                 {
                     var endpoint = session.Endpoint(parse.GetValue(environment));
-                    var files = new FileItemTree(IncludeField);
+                    var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
                     engine = new SyncEngine(new CmItemTree(session.Serialization(endpoint), [.. excluded]), files, new FileApplier(files, IncludeField), PlanDirection.Pull);
                     break;
                 }
@@ -48,7 +48,7 @@ public static class ApplyCommand
                         throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes.");
                     }
                     var api = session.Serialization(endpoint);
-                    engine = new SyncEngine(new FileItemTree(IncludeField), new CmItemTree(api, [.. excluded]), new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Push);
+                    engine = new SyncEngine(new FileItemTree(IncludeField, index: session.FileIndex(excluded)), new CmItemTree(api, [.. excluded]), new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Push);
                     break;
                 }
                 default:

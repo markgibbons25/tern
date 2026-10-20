@@ -243,14 +243,29 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         var others = operations.Where(o => o.Action != PlanAction.Create).ToList();
         var standardValues = operations.Where(o => o.Action == PlanAction.Create && IsStandardValues(o)).ToList();
         var samePath = new List<PlanOperation>();
-        foreach (var create in creates.Concat(standardValues))
+        if (deletes.Count > 0)
         {
-            var clash = deletes.FirstOrDefault(d => ItemPath.Parse(d.TargetPath ?? d.Path).Equals(ItemPath.Parse(create.Path)));
-            if (clash is not null)
+            // Deletes by path, in order, so each create finds its clash without a scan.
+            var byPath = new Dictionary<ItemPath, List<PlanOperation>>();
+            foreach (var d in deletes)
             {
-                samePath.Insert(0, clash);
-                deletes.RemoveAll(d => d.Id == clash.Id);
+                var key = ItemPath.Parse(d.TargetPath ?? d.Path);
+                if (!byPath.TryGetValue(key, out var list))
+                {
+                    byPath[key] = list = [];
+                }
+                list.Add(d);
             }
+            var removed = new HashSet<Guid>();
+            foreach (var create in creates.Concat(standardValues))
+            {
+                if (byPath.TryGetValue(ItemPath.Parse(create.Path), out var list) && list.FirstOrDefault(d => !removed.Contains(d.Id)) is { } clash)
+                {
+                    samePath.Insert(0, clash);
+                    removed.Add(clash.Id);
+                }
+            }
+            deletes.RemoveAll(d => removed.Contains(d.Id));
         }
         return [.. samePath, .. creates, .. others, .. standardValues, .. deletes];
     }
@@ -292,6 +307,7 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         private readonly Dictionary<Guid, ItemMetadata?> _byId = new();
         private readonly Dictionary<Guid, List<ItemMetadata>> _children = new();
         private readonly HashSet<Guid> _childrenFetched = new();
+        private readonly HashSet<(Guid Parent, Guid Child)> _childIds = new();
 
         public TargetIndex(Include include, IReadOnlyList<ItemMetadata> prefetched)
         {
@@ -350,7 +366,7 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
                 {
                     _byId[child.Id] = child;
                 }
-                if (!Children(child.ParentId).Any(c => c.Id == child.Id))
+                if (_childIds.Add((child.ParentId, child.Id)))
                 {
                     AddChild(child);
                 }
@@ -359,6 +375,7 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
 
         private void AddChild(ItemMetadata item)
         {
+            _childIds.Add((item.ParentId, item.Id));
             if (!_children.TryGetValue(item.ParentId, out var list))
             {
                 list = [];

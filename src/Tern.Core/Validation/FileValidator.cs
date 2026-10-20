@@ -1,6 +1,7 @@
 using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
 using Tern.Core.Items;
+using Tern.Core.Trees;
 
 namespace Tern.Core.Validation;
 
@@ -18,35 +19,34 @@ public sealed record ValidationIssue(IssueKind Kind, Include Include, string Fil
 /// </summary>
 public static class FileValidator
 {
-    public static List<ValidationIssue> Validate(IEnumerable<Include> includes)
+    /// <summary>
+    /// Validates <paramref name="includes"/>. Pass the run's <paramref name="files"/> so the Item
+    /// files are parsed once, for validation and the Plan alike.
+    /// </summary>
+    public static List<ValidationIssue> Validate(IEnumerable<Include> includes, FileItemTree? files = null)
     {
+        files ??= new FileItemTree(_ => true);
         var issues = new List<ValidationIssue>();
         foreach (var include in includes)
         {
-            Validate(include, issues);
+            Validate(include, files, issues);
         }
         return issues;
     }
 
-    private static void Validate(Include include, List<ValidationIssue> issues)
+    private static void Validate(Include include, FileItemTree files, List<ValidationIssue> issues)
     {
         if (!Directory.Exists(include.PhysicalRoot))
         {
             return;
         }
         var paths = new ItemFilePaths(include);
-        var parsed = new List<(string File, ItemData Item)>();
-        foreach (var file in Directory.EnumerateFiles(include.PhysicalRoot, "*.yml", SearchOption.AllDirectories))
+        var loaded = files.Loaded(include);
+        foreach (var (file, error) in loaded.Failures)
         {
-            try
-            {
-                parsed.Add((file, ItemFileReader.Read(File.ReadAllBytes(file), file)));
-            }
-            catch (ItemFileFormatException ex)
-            {
-                issues.Add(new ValidationIssue(IssueKind.ParseError, include, file, ex.Message));
-            }
+            issues.Add(new ValidationIssue(IssueKind.ParseError, include, file, error.Message));
         }
+        var parsed = loaded.Files.Select(f => (File: f.PhysicalPath, Item: f)).ToList();
 
         foreach (var group in parsed.GroupBy(p => p.Item.Id).Where(g => g.Count() > 1))
         {
@@ -82,12 +82,9 @@ public static class FileValidator
             }
         }
 
-        foreach (var dir in Directory.EnumerateDirectories(include.PhysicalRoot, "*", SearchOption.AllDirectories))
+        foreach (var dir in loaded.EmptyFolders)
         {
-            if (!Directory.EnumerateFileSystemEntries(dir).Any())
-            {
-                issues.Add(new ValidationIssue(IssueKind.EmptyFolder, include, dir, $"{dir} is an empty folder."));
-            }
+            issues.Add(new ValidationIssue(IssueKind.EmptyFolder, include, dir, $"{dir} is an empty folder."));
         }
     }
 

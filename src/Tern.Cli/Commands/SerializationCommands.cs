@@ -158,7 +158,9 @@ public static class SerializationCommands
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, _) =>
         {
             var modules = session.SelectModules(parse.GetValue(include)!, parse.GetValue(exclude)!);
-            var issues = FileValidator.Validate(modules.SelectMany(m => m.Includes));
+            // Read through the same file index as push and pull, so either can reuse what validate read.
+            var excluded = session.ExcludedFields(modules).ToHashSet();
+            var issues = FileValidator.Validate(modules.SelectMany(m => m.Includes), new FileItemTree(id => !excluded.Contains(id), index: session.FileIndex(excluded)));
             var changes = parse.GetValue(fix) ? FileValidator.Fix(issues) : [];
             session.Output.Document("ser validate", w =>
             {

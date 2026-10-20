@@ -46,7 +46,7 @@ Each `ItemCommand` is `{ itemID, parentID, database, command, data }`. `data` is
 | `RENAME` | The new name |
 | `RECYCLE` | `{}` |
 
-Every batch is validated as a whole before any of it runs. After each batch the server resets the template engine, schedules link-database and index updates, and rebuilds its GraphQL schemas. That fixed per-batch cost is why Tern's batch size is a setting (`writeBatchSize`, default 100).
+Every batch is validated as a whole before any of it runs. After each batch the server resets the template engine, schedules link-database and index updates, and rebuilds its GraphQL schemas. That fixed per-batch cost is why Tern's batch size is a setting (`writeBatchSize`, default 1000). A batch also ends at about 8 MB of command data, so batches of large media items stay a reasonable size. On the local CM, creating 1,000 items took 15.0 s in batches of 100 and 11.3 s in one batch. Batches must go one at a time: two `executeSerializationCommands` calls at once fail inside the server (`NullReferenceException`, `ArgumentOutOfRangeException`) in most runs and can leave a batch half written, on a local CM and in the same code on SitecoreAI. When they did succeed, two or four batches at once created items 1.6 to 2.8 times faster on SitecoreAI, so the server, not the client, sets the write speed.
 
 ## Change history: `history`
 

@@ -43,12 +43,14 @@ public sealed class ManagementClient
     {
         var body = BuildBody(query, writeVariables);
         var token = await _tokens.GetTokenAsync(ct);
-        var (status, text) = await SendAsync(body, token, ct);
+        var (status, bytes) = await SendAsync(body, token, ct);
         if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Found)
         {
             token = await _tokens.ForceRefreshAsync(token, ct);
-            (status, text) = await SendAsync(body, token, ct);
+            (status, bytes) = await SendAsync(body, token, ct);
         }
+        // Responses are parsed from their UTF-8 bytes; text is decoded only for an error message.
+        string Text() => Encoding.UTF8.GetString(bytes);
         if (status is HttpStatusCode.Found or HttpStatusCode.NotFound)
         {
             throw new ManagementException($"{_endpoint} returned {(int)status}. Make sure the GraphQL service (Sitecore Management Services) is installed on the CM.");
@@ -59,27 +61,33 @@ public sealed class ManagementClient
         }
         if ((int)status >= 400)
         {
-            throw new ManagementException($"{_endpoint} returned {(int)status}: {Truncate(text)}");
+            throw new ManagementException($"{_endpoint} returned {(int)status}: {Truncate(Text())}");
         }
         JsonDocument doc;
         try
         {
-            doc = JsonDocument.Parse(text);
+            var json = bytes.AsMemory();
+            if (json.Span.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+            {
+                json = json[3..];
+            }
+            doc = JsonDocument.Parse(json);
         }
         catch (JsonException ex)
         {
-            throw new ManagementException($"{_endpoint} returned something that is not JSON: {Truncate(text)}", ex);
+            throw new ManagementException($"{_endpoint} returned something that is not JSON: {Truncate(Text())}", ex);
         }
         if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
         {
-            var messages = errors.EnumerateArray().Select(e => e.TryGetProperty("message", out var m) ? m.GetString() : e.GetRawText());
+            // Read before the document is disposed.
+            var messages = errors.EnumerateArray().Select(e => e.TryGetProperty("message", out var m) ? m.GetString() : e.GetRawText()).ToList();
             doc.Dispose();
             throw new ManagementException("GraphQL error: " + string.Join("; ", messages));
         }
         return doc;
     }
 
-    private async Task<(HttpStatusCode Status, string Body)> SendAsync(byte[] body, string token, CancellationToken ct)
+    private async Task<(HttpStatusCode Status, byte[] Body)> SendAsync(byte[] body, string token, CancellationToken ct)
     {
         Interlocked.Increment(ref _requestCount);
         using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)
@@ -91,9 +99,9 @@ public sealed class ManagementClient
         request.Headers.TryAddWithoutValidation("sitecore-graphql-version-comparing-enabled", "False");
         var watch = Stopwatch.StartNew();
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct);
-        var text = await response.Content.ReadAsStringAsync(ct);
-        _recorder?.Record(_endpoint, body, (int)response.StatusCode, text, watch.Elapsed);
-        return (response.StatusCode, text);
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        _recorder?.Record(_endpoint, body, (int)response.StatusCode, Encoding.UTF8.GetString(bytes), watch.Elapsed);
+        return (response.StatusCode, bytes);
     }
 
     private static byte[] BuildBody(string query, Action<Utf8JsonWriter>? writeVariables)
