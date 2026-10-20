@@ -31,6 +31,7 @@ public static class TernApp
         root.Subcommands.Add(LoginCommands.Plugin());
         root.Subcommands.Add(SerializationCommands.Build());
         root.Subcommands.Add(ApplyCommand.Build());
+        root.Subcommands.Add(ContentCommands.Build());
         root.Subcommands.Add(ItemCommands.Build());
         root.Subcommands.Add(PublishCommands.Build());
         root.Subcommands.Add(PublishCommands.BuildIndex());

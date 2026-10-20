@@ -102,6 +102,18 @@ public class PlannerTests
         await Assert.ThrowsAsync<NonUniquePathException>(() => planner.PlanIncludeAsync(Include(), [], CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Deletes_a_target_item_with_another_id_at_the_same_path_before_creating()
+    {
+        // The Official CLI stops here with "Non-unique paths cannot be serialized"; content sync
+        // scripts deleted the target item by hand and pushed again.
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Page")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(9, 1, "/sitecore/content/Site/Page")]);
+        var ops = await Plan(source, target, Include(), push: true);
+        Assert.Equal(["Delete /sitecore/content/Site/Page", "Create /sitecore/content/Site/Page"], ops.Select(o => o.ToString()));
+        Assert.Equal([G(9), G(2)], ops.Select(o => o.Id));
+    }
+
     /// <summary>An item tree held in memory, standing in for both the files and a CM.</summary>
     private sealed class MemoryTree(IReadOnlyList<ItemMetadata> items) : IItemTree
     {

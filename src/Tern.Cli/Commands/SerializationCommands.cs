@@ -284,6 +284,14 @@ public sealed class SyncOptions
         _push ? parse.GetValue(_targets)!.SelectMany(t => t.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToArray() : []);
 }
 
-public sealed record SyncRequest(string? Environment, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, bool WhatIf, bool SkipValidation, bool Force, string? PlanOut, bool Publish, IReadOnlyList<string> PublishTargets);
+public sealed record SyncRequest(string? Environment, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, bool WhatIf, bool SkipValidation, bool Force, string? PlanOut, bool Publish, IReadOnlyList<string> PublishTargets)
+{
+    /// <summary>The Modules to sync, chosen by the caller; when null, <see cref="Include"/> and <see cref="Exclude"/> select them.</summary>
+    public IReadOnlyList<Module>? Modules { get; init; }
+}
 
-public sealed record DiffRequest(string Source, string Destination, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, string? Path, string? SourceDatabase, string? DestinationDatabase, bool Push, string? PlanOut);
+public sealed record DiffRequest(string Source, string Destination, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, string? Path, string? SourceDatabase, string? DestinationDatabase, bool Push, string? PlanOut)
+{
+    /// <summary>The Modules to compare, chosen by the caller; when null, the path or the include and exclude filters decide.</summary>
+    public IReadOnlyList<Module>? Modules { get; init; }
+}

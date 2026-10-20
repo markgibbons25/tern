@@ -7,7 +7,11 @@ using Tern.Remote.Auth;
 
 namespace Tern.Remote.Management;
 
-public sealed class ManagementException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed class ManagementException(string message, Exception? inner = null, int? statusCode = null) : Exception(message, inner)
+{
+    /// <summary>The HTTP status the CM answered with, when the failure was one.</summary>
+    public int? StatusCode { get; } = statusCode;
+}
 
 /// <summary>
 /// Sends GraphQL to a CM's Management Services endpoint, <c>/sitecore/api/management</c>. It
@@ -61,7 +65,7 @@ public sealed class ManagementClient
         }
         if ((int)status >= 400)
         {
-            throw new ManagementException($"{_endpoint} returned {(int)status}: {Truncate(Text())}");
+            throw new ManagementException($"{_endpoint} returned {(int)status}: {Truncate(Text())}", statusCode: (int)status);
         }
         JsonDocument doc;
         try

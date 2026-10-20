@@ -38,11 +38,25 @@ public sealed class Output(bool json, bool verbose, bool trace)
         }
     }
 
+    /// <summary>
+    /// When set, <see cref="Document"/> adds each document to this open JSON array instead of
+    /// stdout, so a command made of several steps still prints one document.
+    /// </summary>
+    public Utf8JsonWriter? Steps { get; set; }
+
     /// <summary>Writes the command's JSON document to stdout.</summary>
     public void Document(string command, Action<Utf8JsonWriter> write)
     {
         if (!Json)
         {
+            return;
+        }
+        if (Steps is { } steps)
+        {
+            steps.WriteStartObject();
+            steps.WriteString("command", command);
+            write(steps);
+            steps.WriteEndObject();
             return;
         }
         using var stream = Console.OpenStandardOutput();

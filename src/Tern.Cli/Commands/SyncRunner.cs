@@ -21,7 +21,7 @@ public static class SyncRunner
         {
             output.Info("What if mode is active. No changes will be made.");
         }
-        var modules = session.SelectModules(request.Include, request.Exclude);
+        var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
         var endpoint = session.Endpoint(request.Environment);
         var includes = modules.SelectMany(m => m.Includes).ToList();
         var excluded = session.ExcludedFields(modules).ToHashSet();

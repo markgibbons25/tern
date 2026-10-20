@@ -31,6 +31,7 @@ tern apply push.json                          # refuses if anything changed sinc
 | One item with all fields | `tern item get /sitecore/content/Home --format json` |
 | Find items | `tern item query /sitecore/content/Site --template <id> --field "Title=*News*" --show Title --json` |
 | What differs between two Endpoints | `tern ser diff -s dev -d uat -i <module> --json` |
+| The same for a module not in sitecore.json, or one item path | `tern content diff -s prod -d uat -m <module> --json`, `-p <item path>` |
 | CM version and features | `tern env info` |
 
 ## Logging in without prompts

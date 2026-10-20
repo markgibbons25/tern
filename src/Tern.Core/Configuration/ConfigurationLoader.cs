@@ -109,6 +109,35 @@ public static class ConfigurationLoader
         return module;
     }
 
+    /// <summary>
+    /// A Module with one Include that exists only for this run, as if a module file in
+    /// <paramref name="itemsDirectory"/> had declared it. Its Item files go to
+    /// <c>itemsDirectory/name</c>.
+    /// </summary>
+    public static Module AdHocModule(RootConfiguration root, string ns, string itemsDirectory, string name, ItemPath path, string database, TreeScope scope)
+    {
+        var include = new Include
+        {
+            Name = name,
+            Path = path,
+            Database = database,
+            Scope = scope,
+            MaxRelativePathLength = root.DefaultMaxRelativeItemPathLength,
+        };
+        var directory = Path.GetFullPath(itemsDirectory);
+        var module = new Module
+        {
+            Namespace = ns,
+            SourcePath = Path.Combine(directory, ns + ".module.json"),
+            Includes = [include],
+            SecurityRoot = directory,
+        };
+        include.Module = module;
+        include.PhysicalRoot = Path.Combine(directory, name);
+        include.Validate();
+        return module;
+    }
+
     /// <summary>Applies <c>-i</c>/<c>-e</c> filters: namespace wildcards or <c>tags:[a,b]</c>.</summary>
     public static IReadOnlyList<Module> Select(IReadOnlyList<Module> all, IReadOnlyList<string> include, IReadOnlyList<string> exclude, Action<string>? warn = null)
     {

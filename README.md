@@ -8,6 +8,7 @@ Tern is an open-source, Native AOT command-line tool for Sitecore (SitecoreAI an
   - Plans you save, review and apply, which are refused if the target changed in the meantime
   - `--json` on every command, for scripts and agents
   - `item get` and `item query`
+  - `content sync` and `content diff`: move or compare one module, a content and media pair, or one item path between environments
   - client credentials from environment variables
 
 > Status: `0.1.x`, pre-release. Tern is not affiliated with or endorsed by Sitecore.
@@ -53,6 +54,7 @@ tern item query /sitecore/content/Site --template <template-id> --field "Title=*
 |---|---|
 | Login | `login`, `connect`, `env list/current/set-default/info`, `cloud login/logout` |
 | Serialization | `ser info`, `explain`, `validate`, `pull`, `push`, `diff`, `watch`, `package create/install`, `apply` |
+| Content between environments | `content sync`, `content diff` ([docs/content.md](docs/content.md)) |
 | Items | `item get`, `item query`, `item set` |
 | Jobs | `publish` (and `publish item`, `list-targets`), `index list/statistic/rebuild/schema-populate`, `dbcleanup` |
 | Resource packages | `itemres create`, `itemres unicorn`, `itemres cleanup` |
@@ -104,6 +106,7 @@ What makes the difference, and the settings behind it, are in [docs/settings.md]
 - [Roadmap](docs/roadmap.md)
 - [CLI contract](docs/cli-contract.md)
 - [Settings](docs/settings.md)
+- [Content sync and diff](docs/content.md)
 - [Testing](docs/testing.md)
 - [Protocol notes](docs/protocol/)
 - [Decisions](docs/adr/)

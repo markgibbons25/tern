@@ -20,7 +20,7 @@ public static class PushRunner
         {
             output.Info("What if mode is active. No changes will be made.");
         }
-        var modules = session.SelectModules(request.Include, request.Exclude);
+        var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
         var endpoint = session.Endpoint(request.Environment);
         if (!endpoint.AllowWrite && !request.WhatIf && request.PlanOut is null)
         {
@@ -78,7 +78,12 @@ public static class PushRunner
 
         List<Include> includes;
         IReadOnlyList<Guid> excluded;
-        if (request.Path is { } path)
+        if (request.Modules is { } given)
+        {
+            includes = given.SelectMany(m => m.Includes).ToList();
+            excluded = session.ExcludedFields(given);
+        }
+        else if (request.Path is { } path)
         {
             var include = new Include
             {
