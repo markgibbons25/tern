@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="..\..\src\Tern.Core\Tern.Core.csproj" />
+    <ProjectReference Include="..\..\src\Tern.Remote\Tern.Remote.csproj" />
+    <ProjectReference Include="..\..\src\Tern.Cli\Tern.Cli.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Golden\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

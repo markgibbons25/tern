@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/Tern.Benchmarks/Tern.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Tern.Cli/Tern.Cli.csproj" />
+    <Project Path="src/Tern.Core/Tern.Core.csproj" />
+    <Project Path="src/Tern.Remote/Tern.Remote.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tern.Core.Tests/Tern.Core.Tests.csproj" />
+    <Project Path="tests/Tern.Differential/Tern.Differential.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>tern</AssemblyName>
+    <RootNamespace>Tern.Cli</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>tern</ToolCommandName>
+    <PackageId>Tern.Cli</PackageId>
+    <Description>Drop-in, Native AOT replacement for the Sitecore CLI.</Description>
+    <ToolPackageRuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</ToolPackageRuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <ProjectReference Include="..\Tern.Core\Tern.Core.csproj" />
+    <ProjectReference Include="..\Tern.Remote\Tern.Remote.csproj" />
+    <AssemblyMetadata Include="OfficialCliLine" Value="$(OfficialCliLine)" />
+    <InternalsVisibleTo Include="Tern.Core.Tests" />
+  </ItemGroup>
+</Project>

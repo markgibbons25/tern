@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Version>0.1.0</Version>
+    <Authors>Mark Gibbons</Authors>
+    <Copyright>Copyright (c) 2026 Mark Gibbons</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/markgibbons25/tern</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/markgibbons25/tern</RepositoryUrl>
+    <!-- The version of the Official CLI line Tern is proven against. -->
+    <OfficialCliLine>6.0.x</OfficialCliLine>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Tern.Core\Tern.Core.csproj" />
+    <InternalsVisibleTo Include="Tern.Core.Tests" />
+  </ItemGroup>
+</Project>

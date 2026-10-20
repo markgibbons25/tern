@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="..\..\src\Tern.Core\Tern.Core.csproj" />
+  </ItemGroup>
+</Project>
