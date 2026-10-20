@@ -6,11 +6,13 @@ using Tern.Core.Trees;
 namespace Tern.Remote.Management;
 
 /// <summary>The items on a CM, read through Management Services.</summary>
-public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> excludedFieldIds) : IItemTree
+public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> excludedFieldIds, string? endpointName = null) : IItemTree
 {
     private readonly ConcurrentDictionary<Include, IReadOnlyList<ItemMetadata>> _metadata = new();
 
     public string Description => api.Client.Host;
+
+    public string StoreName(Include include) => $"Sitecore endpoint {endpointName ?? api.Client.Host} (Host: {api.Client.Host}/, DB: {include.Database})";
 
     public SerializationApi Api => api;
 
@@ -38,6 +40,27 @@ public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> exclude
             metadata = _metadata[include];
         }
         return metadata;
+    }
+
+    public async Task<IReadOnlyList<ItemMetadata>> GetByIdsAsync(Include include, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+        var results = await api.GetMetadataAsync(ids.Select(id => new SerializeRequest(id.ToString("D"), include.Database, TreeScope.SingleItem, excludedFieldIds)).ToList(), ct);
+        return results.SelectMany(r => r).ToList();
+    }
+
+    public async Task<IReadOnlyList<ItemMetadata>> GetChildrenAsync(Include include, IReadOnlyCollection<Guid> parentIds, CancellationToken ct)
+    {
+        if (parentIds.Count == 0)
+        {
+            return [];
+        }
+        var parents = parentIds.ToHashSet();
+        var results = await api.GetMetadataAsync(parentIds.Select(id => new SerializeRequest(id.ToString("D"), include.Database, TreeScope.ItemAndChildren, excludedFieldIds)).ToList(), ct);
+        return results.SelectMany(r => r).Where(m => parents.Contains(m.ParentId)).ToList();
     }
 
     public Task<IReadOnlyDictionary<Guid, ItemData>> GetItemsAsync(Include include, IReadOnlyCollection<Guid> ids, CancellationToken ct) =>

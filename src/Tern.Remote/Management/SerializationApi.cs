@@ -74,7 +74,7 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
         var batchSize = Math.Max(1, _options.AliasesPerRequest);
         for (var i = 0; i < requests.Count; i++)
         {
-            if (requests[i].Scope != TreeScope.SingleItem)
+            if (requests[i].Scope is TreeScope.ItemAndDescendants or TreeScope.DescendantsOnly)
             {
                 batches.Add([i]);
                 continue;

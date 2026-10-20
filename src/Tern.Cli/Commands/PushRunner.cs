@@ -5,6 +5,7 @@ using Tern.Core.Planning;
 using Tern.Core.Trees;
 using Tern.Core.Validation;
 using Tern.Remote.Management;
+using Tern.Remote.Security;
 
 namespace Tern.Cli.Commands;
 
@@ -41,7 +42,7 @@ public static class PushRunner
 
         var files = new FileItemTree(IncludeField);
         var api = session.Serialization(endpoint);
-        var cm = new CmItemTree(api, [.. excluded]);
+        var cm = new CmItemTree(api, [.. excluded], endpoint.Name);
         await cm.PrefetchAsync(includes, ct);
 
         var applier = new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info);
@@ -49,6 +50,9 @@ public static class PushRunner
         var result = await engine.PlanAsync(includes, request.Force, ct);
         SyncRunner.PrintPlan(output, result, endpoint.Name);
         var exit = await SyncRunner.FinishAsync(session, request, engine, result, includes, "ser push", watch, ct);
+        var security = new SecuritySync(new SecurityApi(api.Client), session.Root);
+        await SyncRunner.RunSecurityAsync(output, "roles", "role", () => security.PlanRolePushAsync(modules, ct), request, ct);
+        await SyncRunner.RunSecurityAsync(output, "users", "user", () => security.PlanUserPushAsync(modules, ct), request, ct);
 
         if (request.Publish && !request.WhatIf && request.PlanOut is null && !result.Plan.IsEmpty)
         {
@@ -99,8 +103,8 @@ public static class PushRunner
 
         var sourceApi = session.Serialization(sourceEndpoint);
         var targetApi = session.Serialization(targetEndpoint);
-        var source = new CmItemTree(sourceApi, excluded);
-        var target = new CmItemTree(targetApi, excluded);
+        var source = new CmItemTree(sourceApi, excluded, sourceEndpoint.Name);
+        var target = new CmItemTree(targetApi, excluded, targetEndpoint.Name);
         await Task.WhenAll(source.PrefetchAsync(includes, ct), target.PrefetchAsync(includes, ct));
 
         var applier = new CmApplier(targetApi, excluded, session.Settings.WriteBatchSize, output.Info);

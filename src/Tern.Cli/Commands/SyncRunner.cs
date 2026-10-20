@@ -6,6 +6,7 @@ using Tern.Core.Planning;
 using Tern.Core.Trees;
 using Tern.Core.Validation;
 using Tern.Remote.Management;
+using Tern.Remote.Security;
 
 namespace Tern.Cli.Commands;
 
@@ -28,7 +29,7 @@ public static class SyncRunner
 
         var files = new FileItemTree(IncludeField);
         var validation = request.SkipValidation ? Task.FromResult(new List<ValidationIssue>()) : Task.Run(() => FileValidator.Validate(includes), ct);
-        var cm = new CmItemTree(session.Serialization(endpoint), [.. excluded]);
+        var cm = new CmItemTree(session.Serialization(endpoint), [.. excluded], endpoint.Name);
         await cm.PrefetchAsync(includes, ct);
         output.Debug($"Prefetched metadata for {includes.Count} includes in {watch.ElapsedMilliseconds} ms ({cm.Api.Client.RequestCount} requests).");
 
@@ -46,7 +47,34 @@ public static class SyncRunner
             throw new CliException("Discovered changes will not be applied." + Environment.NewLine + "Filesystem integrity validation found errors in serialized files! Use the validate command to fix these.");
         }
 
-        return await FinishAsync(session, request, engine, result, includes, "ser pull", watch, ct);
+        var exit = await FinishAsync(session, request, engine, result, includes, "ser pull", watch, ct);
+        var security = new SecuritySync(new SecurityApi(cm.Api.Client), session.Root);
+        await RunSecurityAsync(output, "roles", "role", () => security.PlanRolePullAsync(modules, ct), request, ct);
+        await RunSecurityAsync(output, "users", "user", () => security.PlanUserPullAsync(modules, ct), request, ct);
+        return exit;
+    }
+
+    /// <summary>Prints and, unless this is a what-if, applies role or user changes.</summary>
+    internal static async Task RunSecurityAsync(Output output, string label, string entity, Func<Task<List<SecurityChange>>> plan, SyncRequest request, CancellationToken ct)
+    {
+        var changes = await plan();
+        foreach (var change in changes)
+        {
+            output.Info(change.Message);
+        }
+        if (changes.Count > 0)
+        {
+            output.Info(string.Empty);
+        }
+        output.Info($"[{label}] Discovered {changes.Count} changes after evaluating {entity} list.");
+        output.Info(string.Empty);
+        if (!request.WhatIf && request.PlanOut is null)
+        {
+            foreach (var change in changes)
+            {
+                await change.Apply(ct);
+            }
+        }
     }
 
     public static Task<int> PushAsync(Session session, SyncRequest request, CancellationToken ct) => PushRunner.PushAsync(session, request, ct);
@@ -65,8 +93,18 @@ public static class SyncRunner
         List<AppliedOperation> applied = [];
         if (!request.WhatIf && request.PlanOut is null && !result.Plan.IsEmpty)
         {
-            output.Info("Applying changes...");
+            foreach (var db in result.Plan.Operations.Select(o => o.Database).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                output.Info($"[{db}] Applying changes...");
+            }
             applied = await engine.ApplyAsync(result.Plan, includes, checkPreconditions: false, ct);
+            foreach (var group in result.Plan.Operations.GroupBy(o => o.Database, StringComparer.OrdinalIgnoreCase))
+            {
+                var subtrees = group.Select(o => (o.Module, o.Include)).Distinct().Count();
+                output.Info(result.Plan.Direction == PlanDirection.Pull
+                    ? $"[{group.Key}] Changes have been applied to serialized items ({subtrees} subtrees)."
+                    : $"[{group.Key}] Changes have been applied to {result.Plan.Target} ({subtrees} subtrees).");
+            }
         }
         output.Document(command, w =>
         {
