@@ -33,6 +33,9 @@ public sealed class Session : IDisposable
 
     public RootConfiguration Root => _root ??= LoadRoot();
 
+    /// <summary>The folder of <c>sitecore.json</c>, or the config folder when there is none.</summary>
+    public string ProjectDirectory => RootOrNull?.RootDirectory ?? ConfigDirectory;
+
     private RootConfiguration? RootOrNull
     {
         get

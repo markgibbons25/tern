@@ -87,6 +87,51 @@ public sealed class LoginStore
         return new Endpoint(this, name, obj);
     }
 
+    /// <summary>
+    /// Empties the named endpoint, keeping its key and position, or adds an empty one. The Official
+    /// CLI's <c>cloud login</c> replaces its endpoint wholesale this way.
+    /// </summary>
+    public Endpoint Replace(string name)
+    {
+        var key = Endpoints.Select(p => p.Key).FirstOrDefault(k => k.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? name;
+        var obj = new JsonObject();
+        Endpoints[key] = obj;
+        return new Endpoint(this, key, obj);
+    }
+
+    /// <summary>
+    /// The key the Official CLI writes for an endpoint name. Its serializer camel-cases dictionary
+    /// keys, so <c>XmCloud</c> is stored as <c>xmCloud</c> and <c>DEV</c> as <c>dev</c>.
+    /// </summary>
+    public static string OfficialKey(string name)
+    {
+        if (name.Length == 0 || !char.IsUpper(name[0]))
+        {
+            return name;
+        }
+        var chars = name.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (i == 1 && !char.IsUpper(chars[i]))
+            {
+                break;
+            }
+            var nextIsLower = i + 1 < chars.Length && !char.IsUpper(chars[i + 1]);
+            if (i > 0 && nextIsLower)
+            {
+                // The last capital before a lower-case letter starts the next word, so it stays,
+                // unless a separator follows it.
+                if (char.IsSeparator(chars[i + 1]))
+                {
+                    chars[i] = char.ToLowerInvariant(chars[i]);
+                }
+                break;
+            }
+            chars[i] = char.ToLowerInvariant(chars[i]);
+        }
+        return new string(chars);
+    }
+
     public bool Remove(string name)
     {
         var key = Endpoints.Select(p => p.Key).FirstOrDefault(k => k.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -177,6 +222,24 @@ public sealed class Endpoint
         _node["variables"] is JsonObject o
             ? o.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => p.Value!.ToString(), StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Sets a property on this endpoint itself, even when it has a <c>ref</c>. The Official CLI's
+    /// <c>cloud environment connect</c> writes client credentials this way; they are not used while
+    /// the <c>ref</c> is in place.
+    /// </summary>
+    public void SetOwn(string key, string? value) => Set(key, value);
+
+    /// <summary>Replaces this endpoint's own variables, writing an empty object for none.</summary>
+    public void SetVariables(IEnumerable<KeyValuePair<string, string>> variables)
+    {
+        var o = new JsonObject();
+        foreach (var (k, v) in variables)
+        {
+            o[k] = v;
+        }
+        _node["variables"] = o;
+    }
 
     public void SetVariable(string key, string value)
     {
