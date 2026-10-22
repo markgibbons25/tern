@@ -114,6 +114,58 @@ public class PlannerTests
         Assert.Equal([G(9), G(2)], ops.Select(o => o.Id));
     }
 
+    private static async Task<List<PlanOperation>> PlanItems(MemoryTree source, MemoryTree target, Include include, int[] ids, params int[] subtrees)
+    {
+        var planner = new Planner(source, target, applyPushOperations: false, force: true);
+        return (await planner.PlanItemsAsync(include, ids.Select(G).ToList(), subtrees.Select(G).ToHashSet(), CancellationToken.None)).Operations;
+    }
+
+    [Fact]
+    public async Task Planning_named_items_leaves_the_rest_of_the_include_alone()
+    {
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/A", "new"), M(3, 1, "/sitecore/content/Site/B", "new"), M(5, 1, "/sitecore/content/Site/D")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/A", "old"), M(3, 1, "/sitecore/content/Site/B", "old"), M(4, 1, "/sitecore/content/Site/C")]);
+        Assert.Equal(["Update /sitecore/content/Site/A"], (await PlanItems(source, target, Include(), [2])).Select(o => o.ToString()));
+    }
+
+    [Fact]
+    public async Task Planning_named_items_matches_a_full_plan_for_those_items()
+    {
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/A", "new"), M(3, 1, "/sitecore/content/Site/B")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/A", "old"), M(4, 1, "/sitecore/content/Site/C")]);
+        var full = await Plan(source, target, Include());
+        var named = await PlanItems(source, target, Include(), [2, 3, 4]);
+        Assert.Equal(full.Select(o => o.ToString()), named.Select(o => o.ToString()));
+    }
+
+    [Fact]
+    public async Task A_named_item_gone_from_the_source_or_moved_out_of_the_include_is_deleted()
+    {
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(3, 0, "/sitecore/content/Elsewhere")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Gone"), M(3, 1, "/sitecore/content/Site/Away")]);
+        var ops = await PlanItems(source, target, Include(), [2, 3]);
+        Assert.Equal(["Delete /sitecore/content/Site/Gone", "Delete /sitecore/content/Site/Away"], ops.Select(o => o.ToString()));
+    }
+
+    [Fact]
+    public async Task A_renamed_item_takes_its_subtree_with_it()
+    {
+        // B was renamed to Renamed, gained child New, and lost child Old.
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Renamed"), M(3, 2, "/sitecore/content/Site/Renamed/Kept"), M(4, 2, "/sitecore/content/Site/Renamed/New")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/B"), M(3, 2, "/sitecore/content/Site/B/Kept"), M(5, 2, "/sitecore/content/Site/B/Old")]);
+        var ops = await PlanItems(source, target, Include(), [2], 2);
+        Assert.Equal(["Create /sitecore/content/Site/Renamed/New", "Rename /sitecore/content/Site/B -> /sitecore/content/Site/Renamed", "Delete /sitecore/content/Site/B/Old"], ops.Select(o => o.ToString()));
+    }
+
+    [Fact]
+    public async Task New_named_items_are_created_parent_first()
+    {
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/P"), M(3, 2, "/sitecore/content/Site/P/C")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site")]);
+        var ops = await PlanItems(source, target, Include(), [3, 2]);
+        Assert.Equal(["Create /sitecore/content/Site/P", "Create /sitecore/content/Site/P/C"], ops.Select(o => o.ToString()));
+    }
+
     /// <summary>An item tree held in memory, standing in for both the files and a CM.</summary>
     private sealed class MemoryTree(IReadOnlyList<ItemMetadata> items) : IItemTree
     {

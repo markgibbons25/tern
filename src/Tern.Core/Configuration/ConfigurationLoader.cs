@@ -181,7 +181,7 @@ public static class ConfigurationLoader
         return Order(modules, warn);
     }
 
-    private static IEnumerable<Module> Resolve(IReadOnlyList<string> expressions, IReadOnlyList<Module> all)
+    private static List<Module> Resolve(IReadOnlyList<string> expressions, IReadOnlyList<Module> all)
     {
         var result = new List<Module>();
         foreach (var expression in expressions)
@@ -207,7 +207,7 @@ public static class ConfigurationLoader
         return result;
     }
 
-    private static IReadOnlyList<Module> Order(IReadOnlyList<Module> modules, Action<string>? warn)
+    private static List<Module> Order(IReadOnlyList<Module> modules, Action<string>? warn)
     {
         var queue = new Queue<(Module Module, List<Module> Dependencies)>();
         foreach (var module in modules)

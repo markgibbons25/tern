@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Text;
 using System.Text.Json;
+
 using Tern.Cli.Common;
 using Tern.Remote.Cloud;
 
@@ -288,7 +289,7 @@ public static partial class CloudCommands
         {
             var variables = CloudJson.Items(await cloud.Deploy.VariablesAsync(parse.GetValue(listId)!, ct)).ToList();
             // The Official CLI shows a variable without a target as applying to every target.
-            IReadOnlyDictionary<string, string>? AnyTarget(JsonElement v) => CloudJson.String(v, "target") is null ? new Dictionary<string, string> { ["target"] = "*" } : null;
+            static IReadOnlyDictionary<string, string>? AnyTarget(JsonElement v) => CloudJson.String(v, "target") is null ? new Dictionary<string, string> { ["target"] = "*" } : null;
             session.Output.RawJson(w => CloudOutput.WriteArray(w, variables, CloudOutput.Variable, AnyTarget));
             session.Output.Line($"Found {variables.Count} variable(s)");
             foreach (var v in variables)

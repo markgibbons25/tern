@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Text.Json;
+
 using Tern.Cli.Common;
 using Tern.Remote.Auth;
 using Tern.Remote.Cloud;

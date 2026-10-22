@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+
 using Tern.Cli.Commands;
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
@@ -26,13 +27,13 @@ public class ContentScopeTests : IDisposable
         return module;
     }
 
-    private static readonly Module Media = M("migration-media", "/sitecore/media library/Project/A", "/sitecore/media library/Project/Shared");
-    private static readonly Module Content = M("migration-content", "/sitecore/content/A/Home");
-    private static readonly Module HospitalsMedia = M("migration-media-hospitals", "/sitecore/media library/Project/H");
-    private static readonly Module HospitalsContent = M("migration-content-hospitals", "/sitecore/content/H/Home");
-    private static readonly Module Roles = M("migration-roles");
-    private static readonly Module Mixed = M("migration-mixed", "/sitecore/media library/Project/A", "/sitecore/content/A");
-    private static readonly IReadOnlyList<Module> All = [Content, Media, HospitalsContent, HospitalsMedia, Roles, Mixed];
+    private static readonly Module Media = M("media", "/sitecore/media library/Project/A", "/sitecore/media library/Project/Shared");
+    private static readonly Module Content = M("content", "/sitecore/content/A/Home");
+    private static readonly Module SiteAMedia = M("media-site-a", "/sitecore/media library/Project/H");
+    private static readonly Module SiteAContent = M("content-site-a", "/sitecore/content/H/Home");
+    private static readonly Module Roles = M("roles");
+    private static readonly Module Mixed = M("mixed", "/sitecore/media library/Project/A", "/sitecore/content/A");
+    private static readonly IReadOnlyList<Module> All = [Content, Media, SiteAContent, SiteAMedia, Roles, Mixed];
 
     private static IEnumerable<string> Stems(IEnumerable<Module> modules) => modules.Select(ContentScope.Stem);
 
@@ -48,25 +49,25 @@ public class ContentScopeTests : IDisposable
     [Fact]
     public void A_suffix_matches_a_content_module_and_its_media_twin_media_first()
     {
-        Assert.Equal(["migration-media-hospitals", "migration-content-hospitals"], Stems(ContentScope.Match(All, "hospitals", skipMedia: false)));
-        Assert.Equal(["migration-content-hospitals"], Stems(ContentScope.Match(All, "hospitals", skipMedia: true)));
+        Assert.Equal(["media-site-a", "content-site-a"], Stems(ContentScope.Match(All, "site-a", skipMedia: false)));
+        Assert.Equal(["content-site-a"], Stems(ContentScope.Match(All, "site-a", skipMedia: true)));
     }
 
     [Theory]
-    [InlineData("migration-content-hospitals")]
-    [InlineData("migration-content-hospitals.module.json")]
-    [InlineData("Project.migration-content-hospitals")]
-    [InlineData("MIGRATION-CONTENT-HOSPITALS")]
+    [InlineData("content-site-a")]
+    [InlineData("content-site-a.module.json")]
+    [InlineData("Project.content-site-a")]
+    [InlineData("CONTENT-SITE-A")]
     public void A_full_name_or_namespace_matches_one_module(string name) =>
-        Assert.Equal(["migration-content-hospitals"], Stems(ContentScope.Match(All, name, skipMedia: false)));
+        Assert.Equal(["content-site-a"], Stems(ContentScope.Match(All, name, skipMedia: false)));
 
     [Fact]
     public void An_exact_name_wins_over_suffixes()
     {
-        var twin = M("other-migration-media", "/sitecore/media library/Project/O");
-        Assert.Equal(["migration-media"], Stems(ContentScope.Match([.. All, twin], "migration-media", skipMedia: false)));
-        Assert.Equal(["migration-media"], Stems(ContentScope.Match(All, "migration-media", skipMedia: false)));
-        Assert.Equal(["migration-roles"], Stems(ContentScope.Match(All, "roles", skipMedia: false)));
+        var twin = M("other-media", "/sitecore/media library/Project/O");
+        Assert.Equal(["media"], Stems(ContentScope.Match([.. All, twin], "media", skipMedia: false)));
+        Assert.Equal(["media"], Stems(ContentScope.Match(All, "media", skipMedia: false)));
+        Assert.Equal(["roles"], Stems(ContentScope.Match(All, "roles", skipMedia: false)));
     }
 
     [Fact]
@@ -82,21 +83,21 @@ public class ContentScopeTests : IDisposable
     public void No_match_lists_the_modules()
     {
         var ex = Assert.Throws<CliException>(() => ContentScope.Match(All, "nothing", skipMedia: false));
-        Assert.Contains("migration-content-hospitals.module.json", ex.Message);
+        Assert.Contains("content-site-a.module.json", ex.Message);
     }
 
     [Fact]
     public void Skipping_media_from_a_media_module_leaves_nothing()
     {
-        var ex = Assert.Throws<CliException>(() => ContentScope.Match(All, "migration-media-hospitals", skipMedia: true));
+        var ex = Assert.Throws<CliException>(() => ContentScope.Match(All, "media-site-a", skipMedia: true));
         Assert.Contains("--skip-media", ex.Message);
     }
 
     [Fact]
     public void Every_module_puts_media_first_and_can_leave_it_out()
     {
-        Assert.Equal(["migration-media", "migration-media-hospitals", "migration-content", "migration-content-hospitals", "migration-roles", "migration-mixed"], Stems(ContentScope.All(All, skipMedia: false)));
-        Assert.Equal(["migration-content", "migration-content-hospitals", "migration-roles", "migration-mixed"], Stems(ContentScope.All(All, skipMedia: true)));
+        Assert.Equal(["media", "media-site-a", "content", "content-site-a", "roles", "mixed"], Stems(ContentScope.All(All, skipMedia: false)));
+        Assert.Equal(["content", "content-site-a", "roles", "mixed"], Stems(ContentScope.All(All, skipMedia: true)));
         Assert.Throws<CliException>(() => ContentScope.All([Media], skipMedia: true));
     }
 
@@ -192,6 +193,7 @@ public class ContentScopeTests : IDisposable
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         if (Directory.Exists(_root))
         {
             Directory.Delete(_root, recursive: true);

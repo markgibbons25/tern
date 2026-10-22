@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+
 using Tern.Core.Configuration;
 using Tern.Core.Security;
 using Tern.Remote.Management;
@@ -169,11 +170,14 @@ public sealed class SecuritySync(SecurityApi api, RootConfiguration root)
             foreach (var role in source)
             {
                 var path = SecurityFiles.RoleFile(folder, role.RoleName);
+                // Files and names are matched the way the Sitecore CLI matches them, culture-aware, so both tools pair the same files.
+#pragma warning disable CA1309
                 var match = existing.FirstOrDefault(r => r.File!.Equals(path, StringComparison.InvariantCultureIgnoreCase)) ?? existing.FirstOrDefault(r => r.RoleName.Equals(role.RoleName, StringComparison.InvariantCultureIgnoreCase));
                 if (match is not null && Path.GetDirectoryName(match.File)!.Equals(Path.GetDirectoryName(path), StringComparison.InvariantCultureIgnoreCase))
                 {
                     existing.Remove(match);
                     var samePath = match.File!.Equals(path, StringComparison.InvariantCultureIgnoreCase);
+#pragma warning restore CA1309
                     if (!match.SameAs(role) || !samePath)
                     {
                         changes.Add(new SecurityChange($"[roles] [U] Role {role.RoleName}", _ => WriteFile(path, SecurityFiles.WriteRole(role), samePath ? null : match.File)));
@@ -282,11 +286,14 @@ public sealed class SecuritySync(SecurityApi api, RootConfiguration root)
             foreach (var user in source)
             {
                 var path = SecurityFiles.UserFile(folder, user.UserName);
+                // Files and names are matched the way the Sitecore CLI matches them, culture-aware, so both tools pair the same files.
+#pragma warning disable CA1309
                 var match = existing.FirstOrDefault(u => u.File!.Equals(path, StringComparison.InvariantCultureIgnoreCase)) ?? existing.FirstOrDefault(u => u.UserName.Equals(user.UserName, StringComparison.InvariantCultureIgnoreCase));
                 if (match is not null && Path.GetDirectoryName(match.File)!.Equals(Path.GetDirectoryName(path), StringComparison.InvariantCultureIgnoreCase))
                 {
                     existing.Remove(match);
                     var samePath = match.File!.Equals(path, StringComparison.InvariantCultureIgnoreCase);
+#pragma warning restore CA1309
                     if (!match.SameAs(user) || !samePath)
                     {
                         changes.Add(new SecurityChange($"[users] [U] User {user.UserName}", _ => WriteFile(path, SecurityFiles.WriteUser(user), samePath ? null : match.File)));

@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
+
 using Tern.Core.Items;
 
 namespace Tern.Core.ItemFiles;
@@ -11,7 +13,7 @@ namespace Tern.Core.ItemFiles;
 public static class ItemFileWriter
 {
     private static readonly char[] BlockTriggers = ['\n', '\r', '"', '\\'];
-    private static readonly char[] QuoteTriggers = ['"', ':', '[', ']', '{', '}', '!', '?', '-'];
+    private static readonly SearchValues<char> QuoteTriggers = SearchValues.Create("\":[]{}!?-");
     private static readonly byte[] Bom = [0xEF, 0xBB, 0xBF];
 
     public static byte[] ToBytes(ItemData item, string? newLine = null)

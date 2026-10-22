@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
 using Tern.Core.Planning;

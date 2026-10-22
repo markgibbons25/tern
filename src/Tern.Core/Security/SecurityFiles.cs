@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+
 using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
 
@@ -9,15 +10,20 @@ namespace Tern.Core.Security;
 /// <summary>A role: <c>domain\name</c> and the roles it is a member of.</summary>
 public sealed record RoleData(string RoleName, IReadOnlyList<string> MemberOfRoles, string? File = null)
 {
+    // Role and user names are matched the way the Sitecore CLI matches them, culture-aware, so both tools pair the same files.
+#pragma warning disable CA1309
     public bool SameAs(RoleData other) =>
         RoleName.Equals(other.RoleName, StringComparison.InvariantCultureIgnoreCase) &&
         MemberOfRoles.SequenceEqual(other.MemberOfRoles, StringComparer.InvariantCultureIgnoreCase);
+#pragma warning restore CA1309
 }
 
 public sealed record ProfileProperty(string Name, string Content, string ContentType, bool IsCustomProperty);
 
 public sealed record UserData(string UserName, string? Email, string? Comment, DateTime CreationDate, bool IsApproved, IReadOnlyList<ProfileProperty> Properties, IReadOnlyList<string> Roles, string? File = null)
 {
+    // Role and user names are matched the way the Sitecore CLI matches them, culture-aware, so both tools pair the same files.
+#pragma warning disable CA1309
     public bool SameAs(UserData other) =>
         UserName.Equals(other.UserName, StringComparison.InvariantCultureIgnoreCase) &&
         string.Equals(Email, other.Email, StringComparison.InvariantCultureIgnoreCase) &&
@@ -25,6 +31,7 @@ public sealed record UserData(string UserName, string? Email, string? Comment, D
         string.Equals(Comment, other.Comment, StringComparison.InvariantCulture) &&
         Roles.Order(StringComparer.Ordinal).SequenceEqual(other.Roles.Order(StringComparer.Ordinal)) &&
         Properties.OrderBy(p => p.Name, StringComparer.Ordinal).SequenceEqual(other.Properties.OrderBy(p => p.Name, StringComparer.Ordinal));
+#pragma warning restore CA1309
 }
 
 /// <summary>

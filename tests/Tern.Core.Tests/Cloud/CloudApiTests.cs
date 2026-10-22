@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+
 using Tern.Remote.Auth;
 using Tern.Remote.Cloud;
 using Tern.Remote.Login;
@@ -322,7 +323,7 @@ public class CloudEndpointTests
     [InlineData("XmCloudMonitoringHost", "xmCloudMonitoringHost")]
     [InlineData("DEV", "dev")]
     [InlineData("URLValue", "urlValue")]
-    [InlineData("dev-mark", "dev-mark")]
+    [InlineData("dev-site", "dev-site")]
     public void Writes_endpoint_names_the_way_the_Official_CLI_does(string name, string key) =>
         Assert.Equal(key, LoginStore.OfficialKey(name));
 

@@ -9,7 +9,7 @@
     <ToolCommandName>tern</ToolCommandName>
     <PackageId>Tern.Cli</PackageId>
     <Description>Drop-in, Native AOT replacement for the Sitecore CLI.</Description>
-    <ToolPackageRuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</ToolPackageRuntimeIdentifiers>
+    <ToolPackageRuntimeIdentifiers>win-x64;linux-x64;osx-x64</ToolPackageRuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />

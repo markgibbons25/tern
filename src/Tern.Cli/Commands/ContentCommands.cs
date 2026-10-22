@@ -1,8 +1,10 @@
 using System.CommandLine;
 using System.Net;
 using System.Text.Json;
+
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
+using Tern.Core.Transfer;
 using Tern.Remote.Management;
 
 namespace Tern.Cli.Commands;
@@ -23,7 +25,29 @@ public static class ContentCommands
         var content = new Command("content", "Copy and compare content between environments");
         content.Subcommands.Add(Sync());
         content.Subcommands.Add(Diff());
+        content.Subcommands.Add(Transfer());
         return content;
+    }
+
+    private static Command Transfer()
+    {
+        var o = new ContentOptions();
+        var merge = new Option<string>("--merge") { Description = "What to do with items the target already has: OverrideExistingItem (default), KeepExistingItem, or OverrideExistingTree, which deletes each transferred tree in the target first", DefaultValueFactory = _ => nameof(MergeStrategy.OverrideExistingItem) };
+        var noConsume = new Option<bool>("--no-consume") { Description = "Copy the .raif files to the target without loading them into its database" };
+        var yes = new Option<bool>("--yes", "-y") { Description = "Confirm a destructive merge strategy" };
+        var whatIf = new Option<bool>("--what-if", "-w") { Description = "List the data trees that would be transferred, without transferring them" };
+        var wait = new Option<bool>("--wait") { Description = "Wait until the target has written the items to its database (minutes), not only until they are available (seconds)" };
+        var cmd = new Command("transfer", "Copy content between SitecoreAI environments with the Content Transfer API, CM to CM") { merge, noConsume, yes, whatIf, wait };
+        o.AddTo(cmd);
+        cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, token) =>
+        {
+            if (!Enum.TryParse<MergeStrategy>(parse.GetValue(merge), ignoreCase: true, out var strategy))
+            {
+                throw new CliException($"--merge must be one of {string.Join(", ", Enum.GetNames<MergeStrategy>())}.");
+            }
+            return TransferRunner.RunAsync(session, o.Read(parse) with { WhatIf = parse.GetValue(whatIf) }, new TransferOptions(strategy, parse.GetValue(noConsume), parse.GetValue(yes), parse.GetValue(wait)), token);
+        }, ct));
+        return cmd;
     }
 
     private static Command Sync()
@@ -207,7 +231,7 @@ public static class ContentCommands
             return (ContentScope.MediaFirst(ConfigurationLoader.Validate(matched, session.Output.Warn)), Describe(matched));
         }
         var all = ContentScope.MediaFirst(ConfigurationLoader.Validate(ContentScope.All(session.AllModules, request.SkipMedia), session.Output.Warn));
-        return (all,(request.SkipMedia ? "every module in sitecore.json except media: " : "every module in sitecore.json: ") + Describe(all));
+        return (all, (request.SkipMedia ? "every module in sitecore.json except media: " : "every module in sitecore.json: ") + Describe(all));
     }
 
     private static string Describe(IEnumerable<Module> modules) =>
@@ -294,7 +318,7 @@ public sealed class ContentOptions
     private readonly Option<string?> _module = new("--module", "-m") { Description = "One module instead of every module in sitecore.json: its file name, namespace, or the end of its file name. A content module and its media twin both match" };
     private readonly Option<string?> _path = new("--path", "-p") { Description = "One item path instead of modules" };
     private readonly Option<string?> _scope = new("--scope") { Description = "With --path: ItemAndDescendants (default), ItemAndChildren, SingleItem or DescendantsOnly" };
-    private readonly Option<string> _database = new("--database") { Description = "With --path: the database on both sides",DefaultValueFactory = _ => "master" };
+    private readonly Option<string> _database = new("--database") { Description = "With --path: the database on both sides", DefaultValueFactory = _ => "master" };
     private readonly Option<bool> _skipMedia = new("--skip-media", "--exclude-media") { Description = "Leave out every module whose includes are all in the media library" };
 
     public void AddTo(Command cmd)

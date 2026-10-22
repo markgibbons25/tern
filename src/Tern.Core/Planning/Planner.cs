@@ -119,6 +119,78 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
     }
 
     /// <summary>
+    /// Plans only the items <paramref name="ids"/> names, as <c>ser watch</c> does after a poll of the
+    /// Change history, instead of walking the whole Include. Each item is found by ID on both sides
+    /// and gets the operations a full plan would give it; one gone from the source, or moved out of
+    /// the Include, is deleted. The items in <paramref name="subtrees"/> (moved or renamed) also have
+    /// their descendants walked, so those follow them. The rest of the Include is taken to be in step.
+    /// </summary>
+    public async Task<IncludePlan> PlanItemsAsync(Include include, IReadOnlyCollection<Guid> ids, IReadOnlySet<Guid> subtrees, CancellationToken ct)
+    {
+        var sources = (await source.GetByIdsAsync(include, ids, ct))
+            .Where(m => include.IncludesPath(m.ItemPath))
+            .GroupBy(m => m.Id).Select(g => g.First())
+            .OrderBy(m => m.ItemPath.Count)
+            .ToList();
+        var index = new TargetIndex(include, [], covered: false);
+        index.AddFound(ids, await target.GetByIdsAsync(include, ids, ct));
+
+        var operations = new List<PlanOperation>();
+        var deletes = new List<PlanOperation>();
+        var found = sources.Select(s => s.Id).ToHashSet();
+        foreach (var id in ids.Where(id => !found.Contains(id)))
+        {
+            if (index.ById(id) is { } gone && include.IncludesPath(gone.ItemPath) && CanDelete(include, gone))
+            {
+                deletes.Add(Delete(include, gone));
+            }
+        }
+
+        // A changed item inside a moved or renamed subtree is planned by that subtree's walk, so its
+        // parent is always created first.
+        var roots = sources.Where(s => subtrees.Contains(s.Id)).ToList();
+        bool InsideWalk(ItemMetadata m) => roots.Any(r => r.Id != m.Id && m.ItemPath.IsDescendantOrSelfOf(r.ItemPath));
+        long nodes = 0;
+        foreach (var node in sources.Where(s => !InsideWalk(s)))
+        {
+            nodes++;
+            operations.AddRange(NodeOperations(include, node, index.ById(node.Id)));
+        }
+
+        var level = roots;
+        var depth = 0;
+        while (level.Count > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            await ResolveAsync(include, index, level, ct);
+            var children = (await source.GetChildrenAsync(include, level.Select(n => n.Id).ToList(), ct))
+                .Where(c => include.IncludesPath(c.ItemPath)).ToList();
+            var byParent = ChildrenIndex(children);
+            foreach (var node in level)
+            {
+                var nodeChildren = byParent.GetValueOrDefault(node.Id) ?? [];
+                EnsureUniqueNames(nodeChildren);
+                var targetNode = index.ById(node.Id);
+                if (depth > 0)
+                {
+                    nodes++;
+                    operations.AddRange(NodeOperations(include, node, targetNode));
+                }
+                if (targetNode is not null)
+                {
+                    deletes.AddRange(OrphanDeletes(include, nodeChildren, targetNode, index.Children(targetNode.Id)));
+                }
+            }
+            level = children;
+            depth++;
+        }
+
+        var moved = operations.Where(o => o.Action == PlanAction.Move).Select(o => o.Id).ToHashSet();
+        deletes.RemoveAll(d => moved.Contains(d.Id));
+        return new IncludePlan(include, Order(operations, Distinct(deletes)), nodes);
+    }
+
+    /// <summary>
     /// Finds the target of every node on this level, by ID, and the children of any target that
     /// lies outside what the first fetch covered.
     /// </summary>
@@ -308,10 +380,14 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         private readonly Dictionary<Guid, List<ItemMetadata>> _children = new();
         private readonly HashSet<Guid> _childrenFetched = new();
         private readonly HashSet<(Guid Parent, Guid Child)> _childIds = new();
+        private readonly bool _covered;
 
-        public TargetIndex(Include include, IReadOnlyList<ItemMetadata> prefetched)
+        /// <param name="covered">Whether <paramref name="prefetched"/> is the Include's whole subtree,
+        /// so every item under the Include's path already has its children listed.</param>
+        public TargetIndex(Include include, IReadOnlyList<ItemMetadata> prefetched, bool covered = true)
         {
             _include = include;
+            _covered = covered;
             foreach (var item in prefetched)
             {
                 if (_byId.TryAdd(item.Id, item))
@@ -331,9 +407,9 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         /// Children are known for anything inside the Include's path, which the first fetch covered,
         /// or that has been fetched since.
         /// </summary>
-        public bool ChildrenKnown(ItemMetadata node) => _childrenFetched.Contains(node.Id) || IsUnderInclude(_include, node.Path);
+        public bool ChildrenKnown(ItemMetadata node) => _childrenFetched.Contains(node.Id) || (_covered && IsUnderInclude(_include, node.Path));
 
-        public IReadOnlyList<ItemMetadata> Children(Guid parentId) => _children.GetValueOrDefault(parentId) ?? [];
+        public List<ItemMetadata> Children(Guid parentId) => _children.GetValueOrDefault(parentId) ?? [];
 
         public IEnumerable<ItemMetadata> ChildrenOfPath(ItemPath path) =>
             _byId.Values.Where(m => m is not null && m.ItemPath.Parent.Equals(path))!;

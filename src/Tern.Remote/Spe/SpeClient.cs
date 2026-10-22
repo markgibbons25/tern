@@ -36,7 +36,7 @@ public sealed class SpeClient(HttpClient http, string host, SpeCredentials crede
         {
             SpeCredentials.Basic b => new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{b.UserName}:{b.Password}"))),
             SpeCredentials.SharedSecret s => new AuthenticationHeaderValue("Bearer", Token(s, host)),
-            _ => throw new ArgumentOutOfRangeException(nameof(credentials)),
+            _ => throw new NotSupportedException($"SPE credentials of type {credentials.GetType().Name} are not supported."),
         };
         using var response = await http.SendAsync(request, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
@@ -58,7 +58,7 @@ public sealed class SpeClient(HttpClient http, string host, SpeCredentials crede
     {
         var issued = now ?? DateTimeOffset.UtcNow;
         static string B64(ReadOnlySpan<byte> bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        string Json(Action<Utf8JsonWriter> write)
+        static string Json(Action<Utf8JsonWriter> write)
         {
             using var stream = new MemoryStream();
             using (var w = new Utf8JsonWriter(stream))

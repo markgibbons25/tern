@@ -1,81 +1,90 @@
 #!/usr/bin/env bash
-# End-to-end benchmark and check suite.
+# The benchmark suite: Tern against Sitecore CLI 7, on a local CM, a SitecoreAI environment or both.
 #
-#   [CLI=1 [CLITOOLS="official official7"]] [ONLY=<regex>] suite.sh <quick|full> <local|cloud> <tool>...
+#   [RUNS=n] [ONLY=<regex>] [CLOUD_ENV=<endpoint>] suite.sh <local|cloud|both> <build>
 #
-# The Sitecore CLIs' numbers don't change when Tern does, so they are measured only with CLI=1
-# (which adds CLITOOLS, both CLIs by default, to the tools) and saved, replacing earlier rows for
-# the same scenario and CLI; other runs report the saved numbers beside Tern's. ONLY runs just the
-# scenarios whose names match the regex.
+# Every scenario runs both tools, taking turns, and the median is reported. Scenarios of fewer
+# than 1,000 items run RUNS times (default 3); larger ones, and the whole-project what-ifs, run
+# once, which is steady enough at their length. ONLY runs just the scenarios whose names match.
+# `both` takes about 15 minutes; nothing touches more than 10,000 items.
 #
-# The Sitecore CLI 7 install and its plugins live in $TOOLS_DIR, outside %TEMP%: Windows' temp
-# cleanup deletes files with old timestamps, which NuGet-extracted files have.
+# <build> is a folder under $B holding a Tern build (aot, opt, ...). Sitecore CLI 7 and its plugins
+# live in $TOOLS_DIR, outside %TEMP%: Windows' temp cleanup deletes files with old timestamps,
+# which NuGet-extracted files have. Both tools run in the same folders, whose sitecore.json names
+# the 7.x plugins; Tern ignores the plugin list.
 #
-# A tool is `official` (Sitecore CLI 6), `official7` (Sitecore CLI 7) or the name of a folder under
-# $B holding a Tern build (aot, opt, ...). quick (~30 s for two Tern builds, local) runs every kind
-# of scenario at small sizes; full (~5 min with both CLIs and one Tern build, local) adds the
-# larger sizes, content + media sync, and the correctness suites (unit tests, differential push,
-# command tree). `cloud` runs the CM scenarios against the dev-mark endpoint.
+# The content is real, or made by Sitecore. The whole-project and full-pull scenarios use a copy
+# of a real project ($B/proj, $B/content, $B/all). The sets under /sitecore/system/Modules/Tern
+# Bench <set> were created on the local CM by bench/make-set.ps1, so Sitecore assigned their IDs,
+# and pulled once into $B/sets/<set>:
+#   c100n, m100n  100 content / media items that each create run pushes; the CM copy is deleted
+#                 before every run
+#   c1k, c10k     1,000 / 10,000 content items kept on the CM, for pulls and in-sync pushes; the
+#                 "10 changes" scenario edits ten c1k files before each run
+#   m100          100 media items kept on the CM, for pulls
+# Setup pushes the kept sets from those files to the CM when they are missing or differ. On cloud,
+# pushes are real, so CLOUD_ENV must be an environment nobody else depends on.
 #
-# On cloud, dev-mark is a personal environment, so pushes are real there too. Creates go to
-# /sitecore/system/Modules/Tern Bench <set> roots (deleted after) and the 7-change push to the
-# Tern Tests scratch root; in-sync pushes send content pulled from the same CM.
+# Logins: every folder's user.json is given the same endpoints, copied from $B/cloud-probe after
+# one call there has refreshed the token. A refresh token is single-use, so folders that each
+# refreshed their own copy would invalidate each other's.
 #
-# The workspace $B (TERN_BENCH, default ~/tern-bench) holds everything that isn't committed: Tern
-# builds, the project copies (proj, content, all), the fixture, generated sets, pulls, reference
-# pulls, logs, results, and measure.exe (`dotnet publish bench/measure -c Release -o $B/measure`).
+# Each tool's pull is compared with CLI 7's pull of the same scenario in the same run; only the
+# .scindex cache may differ. Correctness suites (unit tests, tests/differential) run on their own.
 #
-# Results: $B/results/<mode>-<env>-<timestamp>.tsv, a summary on stdout.
+# Results: $B/results/<env>-<timestamp>.tsv, and a Markdown table on stdout.
 set -uo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 B=${TERN_BENCH:-$HOME/tern-bench}
 SCR="$(cygpath -m "$REPO/bench")"
-MODE=$1; ENVN=$2; shift 2; TOOLS="$*"
-[ "${CLI:-0}" = 1 ] && TOOLS="${CLITOOLS:-official official7} $TOOLS"
+ENVS=$1; BUILD=$2
+[ "$ENVS" = both ] && ENVS="local cloud"
+TOOLS="official7 $BUILD"
 TOOLS_DIR=$(cygpath -m "${TERN_BENCH_TOOLS:-$HOME/tern-bench-tools}")
-RUNS=${RUNS:-1}
-CLOUD_ENV=${CLOUD_ENV:-dev-mark}
-STAMP=$(date +%Y%m%d-%H%M%S)
-OUT=$B/results/$MODE-$ENVN-$STAMP.tsv; mkdir -p $B/results; : > $OUT
-LOG=$B/logs/suite-$ENVN; mkdir -p $LOG
+RUNS=${RUNS:-3}
+[[ " $ENVS " == *" cloud "* ]] && CLOUD_ENV=${CLOUD_ENV:?Set CLOUD_ENV to the endpoint of a SitecoreAI environment the suite may write to}
+SETUP_TERN=$B/setup/tern.exe   # a known-good Tern for setup and resets, never one under test
+PROBE=$B/cloud-probe
 START=$(date +%s)
-[ $ENVN = cloud ] && EFLAG="-n $CLOUD_ENV" || EFLAG=""
-WHATIF=""
-SETUP_TERN=$B/opt1/tern.exe   # a known-good Tern for resets and setup, never one under test
 
-cmd_of() { case $1 in official) echo dotnet sitecore ;; official7) echo $TOOLS_DIR/cli7/sitecore.exe ;; *) echo $B/$1/tern.exe ;; esac; }
+cmd_of() { case $1 in official7) echo $TOOLS_DIR/cli7/sitecore.exe ;; *) echo $B/$1/tern.exe ;; esac; }
 
-# The folder a tool runs in: CLI 7 gets a mirror under $B/v7 whose sitecore.json names the 7.x plugins.
-dir_of() {
-  local tool=$1 dir=$2
-  if [ $tool != official7 ]; then echo $dir; return; fi
-  local m=$B/v7${dir#$B}
-  if [ ! -f $m/.v7-ready ]; then
-    mkdir -p $m; cp -r $dir/. $m/; (cd $m && rm -rf ./.sitecore/package-cache)
-    [ -f $m/sitecore.json ] && sed -i 's/@6\.0\.23/@7.0.24/g; s/XMCloud@1\.1\.120/XMCloud@2.0.14/' $m/sitecore.json
-    touch $m/.v7-ready
-  fi
+# The folders the suite runs in: 7.x plugins in sitecore.json, CLI 7's plugin cache linked in.
+FOLDERS="$B/proj $B/content $B/all $(ls -d $B/sets/*/ 2>/dev/null | sed 's#/$##')"
+prep_dir() {
+  local d=$1
+  [ -f $d/sitecore.json ] && sed -i 's/@6\.0\.23/@7.0.24/g; s/XMCloud@1\.1\.120/XMCloud@2.0.14/' $d/sitecore.json
   # The shared plugin cache, linked rather than copied; checked every time, since temp cleanup can remove the link.
-  if [ ! -d $m/.sitecore/package-cache/nuget ]; then
-    mkdir -p $m/.sitecore && MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w $m/.sitecore/package-cache)" "$(cygpath -w $TOOLS_DIR/v7plugins/.sitecore/package-cache)" > /dev/null
+  # A folder that had CLI 6's own cache keeps it, moved aside.
+  if [ ! -d $d/.sitecore/package-cache/nuget/Sitecore.DevEx.Extensibility.Serialization.7.0.24 ]; then
+    mkdir -p $d/.sitecore
+    if [ -d $d/.sitecore/package-cache ]; then mv $d/.sitecore/package-cache $d/.sitecore/package-cache-v6.$$ 2>/dev/null || rm -f $d/.sitecore/package-cache; fi
+    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w $d/.sitecore/package-cache)" "$(cygpath -w $TOOLS_DIR/v7plugins/.sitecore/package-cache)" > /dev/null
   fi
-  # The endpoints follow the source folder's user.json, which setup may have changed.
-  cp $dir/.sitecore/user.json $m/.sitecore/user.json
-  echo $m
 }
 
-# A folder for one pull scenario: the source project's configuration, no items.
+# One refresh in $PROBE, then its endpoints everywhere (see Logins above).
+share_login() {
+  local env=$1
+  (cd $PROBE && $SETUP_TERN item query /sitecore -n $env --limit 1 > $LOG/login.log 2>&1) || { echo "LOGIN FAILED for $env: $(tail -1 $LOG/login.log). Log in again in $PROBE."; exit 1; }
+  python "$SCR/endpoint.py" "$(cygpath -w $PROBE/.sitecore/user.json)" xmCloud default ${CLOUD_ENV:-} -- \
+    $(for d in $FOLDERS $(ls -d $B/pulls/*/*/ 2>/dev/null | sed 's#/$##'); do [ -f $d/.sitecore/user.json ] && cygpath -w $d/.sitecore/user.json; done)
+}
+
+# A folder for one pull scenario: the source folder's configuration, no items.
 pull_dir() {
   local src=$1 name=$2 d=$B/pulls/$ENVN/$2
   if [ ! -f $d/sitecore.json ]; then
-    mkdir -p $d; cp -r $src/.config $src/.sitecore $d/; cp $src/*.json $d/
+    mkdir -p $d; cp -r $src/.sitecore $d/ 2>/dev/null; rm -rf $d/.sitecore/package-cache; cp $src/*.json $d/
+    [ -d $src/.config ] && cp -r $src/.config $d/
   fi
+  prep_dir $d
   echo $d
 }
 
 # measure <scenario> <tool> <run> <dir> <args...>
 measure() {
-  local sc=$1 tool=$2 run=$3 dir=$(dir_of $2 $4); shift 4
+  local sc=$1 tool=$2 run=$3 dir=$4; shift 4
   local res=$LOG/m.txt; rm -f $res
   (cd $dir && $B/measure/measure.exe "$(cygpath -w $res)" $(cmd_of $tool) "$@" > "$LOG/$tool.log" 2>&1)
   read ms ws commit cpu rc < $res
@@ -83,136 +92,119 @@ measure() {
   [ "$rc" = 0 ] || { echo "  FAILED: $tool $sc (exit $rc): $(grep -v '^\s*at ' "$LOG/$tool.log" | tail -2 | tr '\n' ' ')"; }
 }
 
-# scenario <name> <dir> <setup or ""> <args...>: every tool, RUNS times, taking turns.
-# With FRESH=1 the first measurement skips the setup: the state is already right (a create set
-# that the start of the suite made sure is absent).
+# scenario <name> <dir> <setup or ""> <args...>: both tools, taking turns. LARGE=1 runs it once.
 scenario() {
-  local sc=$1 dir=$2 setup=$3 first=1; shift 3
+  local sc=$1 dir=$2 setup=$3 runs=$RUNS; shift 3
   if [ -n "${ONLY:-}" ] && ! [[ "$sc" =~ $ONLY ]]; then return; fi
-  for r in $(seq $RUNS); do
+  [ "${LARGE:-0}" = 1 ] && runs=1
+  for r in $(seq $runs); do
     for tool in $TOOLS; do
-      [ -n "$setup" ] && ! { [ "${FRESH:-0}" = 1 ] && [ $first = 1 ]; } && (cd $(dir_of $tool $dir) && eval "$setup" > /dev/null 2>&1)
-      first=0
+      [ -n "$setup" ] && (cd $dir && eval "$setup" > /dev/null 2>&1)
       measure "$sc" $tool $r $dir "$@"
       [ "${AFTER:-}" ] && $AFTER "$sc" $tool $dir
     done
   done
 }
 
-# Pulled files must match the reference pull for that scenario and environment (the first full
-# run's Sitecore CLI 6 pull); .scindex is the Official CLI's cache and may differ.
+# CLI 7's pull is the reference; Tern's must match it.
 check_pull() {
-  local sc=$1 tool=$2 dir=$(dir_of $2 $3) ref="$B/ref/$ENVN/$1"
-  if [ ! -d "$ref" ]; then
-    [ $tool = official ] || return 0
-    mkdir -p "$(dirname "$ref")"; cp -r $dir/items "$ref"; return 0
-  fi
+  local sc=$1 tool=$2 dir=$3 ref="$LOG/ref/$(echo "$1" | tr -c 'A-Za-z0-9\n' _)"
+  if [ $tool = official7 ]; then rm -rf "$ref"; mkdir -p "$(dirname "$ref")"; cp -r $dir/items "$ref"; return; fi
   diff -rq -x '*.scindex' "$ref" $dir/items > $LOG/diff.txt 2>&1 || echo "  PULL DIFFERS: $tool $sc ($(wc -l < $LOG/diff.txt) paths; $LOG/diff.txt)"
+}
+
+# ser watch runs until it is stopped, so it is measured from outside: how long a change made on
+# the CM takes to reach its Item file (WATCH_EDITS edits of one c1k item's Title, 1-3 s apart),
+# and the watcher's CPU time and working set over WATCH_IDLE seconds with nothing changing,
+# sampled with procstat.ps1. Each tool watches its own pull of c1k, started with --skip-pull.
+WATCH_EDITS=${WATCH_EDITS:-8}; WATCH_IDLE=${WATCH_IDLE:-30}
+watch_bench() {
+  if [ -n "${ONLY:-}" ] && ! [[ "ser watch" =~ $ONLY ]]; then return; fi
+  local dir item="/sitecore/system/Modules/Tern Bench c1k/f01/i0000100" tool
+  dir=$(pull_dir $B/sets/c1k watch)
+  local file="$dir/items/bench/Tern Bench c1k/f01/i0000100.yml"
+  stat() { pwsh -NoProfile -File "$SCR/procstat.ps1" -Id $1 2>/dev/null; }
+  row() { printf "%s\t%s\t%s\t%s\t%s\t%.1f\t%s\n" "$1" $2 $3 $4 $5 $(awk -v b=$6 'BEGIN{print b/1048576}') $7 >> $OUT; }
+  for tool in $TOOLS; do
+    (cd $dir && rm -rf items && $SETUP_TERN ser pull $EFLAG > /dev/null 2>&1)
+    (cd $dir && exec $(cmd_of $tool) ser watch -s $EFLAG > $LOG/watch-$tool.log 2>&1) &
+    local pid=$! waited=0
+    until grep -qE "Watching .* for changes|Watcher is online" $LOG/watch-$tool.log 2>/dev/null || [ $waited -ge 120 ]; do sleep 1; waited=$((waited + 1)); done
+    local wpid; wpid=$(cat /proc/$pid/winpid 2>/dev/null)
+    if [ -z "$wpid" ] || [ $waited -ge 120 ]; then echo "  FAILED: $tool ser watch did not start: $(tail -2 $LOG/watch-$tool.log | tr '\n' ' ')"; kill $pid 2>/dev/null; continue; fi
+    local i v t0 ms rc before after
+    for i in $(seq $WATCH_EDITS); do
+      # A random pause, so edits land anywhere in the watcher's poll cycle rather than locking
+      # into step with it, which would favour whichever tool happened to start in a lucky phase.
+      sleep $(awk -v r=$RANDOM 'BEGIN { printf "%.3f", 1 + (r % 2000) / 1000 }')
+      read before _ _ < <(stat $wpid)
+      v="Watch $i $RANDOM"   # plain, so the Item file never quotes it
+      (cd $dir && MSYS_NO_PATHCONV=1 $SETUP_TERN item set "$item" $EFLAG --field "Title=$v") > $LOG/watch-set.log 2>&1 || echo "  WATCH EDIT FAILED: $(tail -1 $LOG/watch-set.log)"
+      t0=$(date +%s%N); rc=1
+      while [ $(( ($(date +%s%N) - t0) / 1000000 )) -lt 30000 ]; do grep -qF "$v" "$file" 2>/dev/null && { rc=0; break; }; sleep 0.02; done
+      ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+      read after ws _ < <(stat $wpid)
+      row "ser watch: CM edit to Item file" $tool $i $ms $rc $ws $((after - before))
+      [ $rc = 0 ] || echo "  FAILED: $tool ser watch did not write the edit within 30 s"
+    done
+    read before _ _ < <(stat $wpid)
+    sleep $WATCH_IDLE
+    read after ws _ < <(stat $wpid)
+    # The time column holds the CPU time used while idle, so the comparison reads like the others.
+    row "ser watch: CPU while idle for ${WATCH_IDLE} s" $tool 1 $((after - before)) 0 $ws $((after - before))
+    kill $pid 2>/dev/null; wait $pid 2>/dev/null
+  done
 }
 
 DEL() { echo "mutation { deleteItem(input: { path: \"/sitecore/system/Modules/Tern Bench $1\", permanently: true }) { successful } }"; }
 reset_set() { echo "$SETUP_TERN authoring query $EFLAG -q '$(DEL $1)'"; }
+# Ten c1k items get a new Title in the files, so each push has exactly ten changes to send.
+edit_ten() { for f in items/*/*/f00/i000000[0-9].yml; do sed -i "/Hint: Title/{n;s/Value: .*/Value: \"Item $RANDOM\"/}" "$f"; done; }
+ensure_on_cm() { (cd $B/sets/$1 && $SETUP_TERN ser push $EFLAG > $LOG/setup.log 2>&1) || echo "  SETUP FAILED for $1: $(tail -2 $LOG/setup.log)"; }
 
-# A generated set, created if missing. Persistent sets are pushed to the CM once.
-set_dir() {
-  local name=$1 kind=$2 n=$3 d=$B/sets/$1
-  if [ ! -f $d/sitecore.json ]; then python "$SCR/make-bench.py" $d $kind $n > /dev/null; fi
-  cp -r $B/all/.config $d/ 2>/dev/null; mkdir -p $d/.sitecore; cp -r $B/all/.sitecore/schemas $d/.sitecore/ 2>/dev/null
-  cp $B/all/.sitecore/user.json $d/.sitecore/user.json; [ -d $d/.sitecore/package-cache ] || cp -r $B/all/.sitecore/package-cache $d/.sitecore/
-  echo $d
-}
-ensure_on_cm() { (cd $1 && $SETUP_TERN ser push $EFLAG > $LOG/setup.log 2>&1) || echo "  SETUP FAILED for $1: $(tail -2 $LOG/setup.log)"; }
+STAMP=$(date +%Y%m%d-%H%M%S)
+for ENVN in $ENVS; do
+  OUT=$B/results/$ENVN-$STAMP.tsv; mkdir -p $B/results; : > $OUT
+  LOG=$B/logs/suite-$ENVN; mkdir -p $LOG
+  [ $ENVN = cloud ] && EFLAG="-n $CLOUD_ENV" || EFLAG=""
+  T0=$(date +%s)
 
-# --- setup -------------------------------------------------------------------------------------
-P=$B/proj; F=$B/fixture
-# The create sets are deleted after each run, in the background; wait for that, then make sure.
-JANITOR=$B/logs/janitor-$ENVN.pid
-while [ -f $JANITOR ] && kill -0 $(cat $JANITOR) 2>/dev/null; do sleep 1; done
-CREATE_SETS="c100n m100n"; [ $MODE = full ] && CREATE_SETS="$CREATE_SETS c1kn m1kn"
-if [ $ENVN = cloud ]; then
-  python "$SCR/endpoint.py" "$(cygpath -w $B/cloud-probe/.sitecore/user.json)" $CLOUD_ENV $(for d in $P $F/s0 $F/s1 $B/content $B/all $B/sets/* $B/pulls/cloud/*; do [ -f $d/.sitecore/user.json ] && cygpath -w $d/.sitecore/user.json; done)
-fi
-C1K=$(set_dir c1kp content 1000); M100=$(set_dir m100p media 100)
-C100N=$(set_dir c100n content 100); M100N=$(set_dir m100n media 100)
-if [ $MODE = full ]; then
-  C10K=$(set_dir c10kp content 10000); M1K=$(set_dir m1kp media 1000)
-  C1KN=$(set_dir c1kn content 1000); M1KN=$(set_dir m1kn media 1000)
-  for d in $C1K $M100 $C10K $M1K; do ensure_on_cm $d; done
-elif [ ! -f $B/sets/.on-cm-$ENVN ]; then
-  for d in $C1K $M100; do ensure_on_cm $d; done
-fi
-touch $B/sets/.on-cm-$ENVN
-for s in $CREATE_SETS; do (cd $B/sets/$s && eval "$(reset_set $s)" > /dev/null 2>&1); done
-[ $ENVN = cloud ] && python "$SCR/endpoint.py" "$(cygpath -w $B/cloud-probe/.sitecore/user.json)" $CLOUD_ENV $(for d in $B/sets/*; do cygpath -w $d/.sitecore/user.json; done)
-SETUP=$(( $(date +%s) - START ))
+  # --- setup ---------------------------------------------------------------------------------
+  for d in $FOLDERS; do prep_dir $d; done
+  share_login $([ $ENVN = cloud ] && echo $CLOUD_ENV || echo default)
+  for s in c1k c10k m100; do ensure_on_cm $s; done
+  for s in c100n m100n; do (cd $B/sets/$s && eval "$(reset_set $s)" > /dev/null 2>&1); done
+  echo "== $ENVN: setup $(( $(date +%s) - T0 )) s"
 
-# --- scenarios ---------------------------------------------------------------------------------
-if [ $ENVN = local ]; then
-  # Commands that never talk to the CM run only in the local suite.
-  scenario "Start up (--version)" $P "" --version
-  scenario "ser info" $P "" ser info
-  scenario "ser validate (whole project)" $P "" ser validate
-  scenario "itemres create (whole project)" $P "" itemres create -o bench-res --overwrite
-fi
-scenario "ser pull --what-if (whole project)" $P "" ser pull -w -fr $EFLAG
-scenario "ser push --what-if (whole project)" $P "" ser push -w $EFLAG
-# The reset uses a known-good Tern build (the differential test proves its pushes match the Sitecore CLI's).
-scenario "ser push (7 changes)" $F/s1 "(cd $F/s0 && $SETUP_TERN ser push $EFLAG)" ser push $EFLAG
-scenario "ser push, nothing to do" $F/s0 "" ser push $EFLAG
-
-AFTER=check_pull scenario "Full pull (content only)" $(pull_dir $B/content content) "rm -rf ./items" ser pull $EFLAG
-scenario "Full push, in sync (content only)" $(pull_dir $B/content content) "" ser push $WHATIF $EFLAG
-if [ $MODE = full ]; then
+  # --- scenarios -----------------------------------------------------------------------------
+  P=$B/proj; S=$B/sets
+  if [ $ENVN = local ]; then
+    # Commands that never talk to the CM run only on local.
+    scenario "Start up (--version)" $P "" --version
+    scenario "ser info" $P "" ser info
+    LARGE=1 scenario "ser validate (whole project)" $P "" ser validate
+    LARGE=1 scenario "itemres create (whole project)" $P "" itemres create -o bench-res --overwrite
+  fi
+  LARGE=1 scenario "ser pull --what-if (whole project)" $P "" ser pull -w -fr $EFLAG
+  LARGE=1 scenario "ser push --what-if (whole project)" $P "" ser push -w $EFLAG
+  AFTER=check_pull scenario "Full pull (content only)" $(pull_dir $B/content content) "rm -rf ./items" ser pull $EFLAG
+  scenario "Full push, in sync (content only)" $(pull_dir $B/content content) "" ser push $EFLAG
   AFTER=check_pull scenario "Full pull (content + media)" $(pull_dir $B/all all) "rm -rf ./items" ser pull $EFLAG
-  scenario "Full push, in sync (content + media)" $(pull_dir $B/all all) "" ser push $WHATIF $EFLAG
-fi
+  scenario "Full push, in sync (content + media)" $(pull_dir $B/all all) "" ser push $EFLAG
+  scenario "Create 100 content items" $S/c100n "$(reset_set c100n)" ser push $EFLAG
+  scenario "Create 100 media items" $S/m100n "$(reset_set m100n)" ser push $EFLAG
+  AFTER=check_pull scenario "Pull 100 media items" $(pull_dir $S/m100 m100) "rm -rf ./items" ser pull $EFLAG
+  scenario "Push 10 changes (1,000 items)" $S/c1k edit_ten ser push $EFLAG
+  LARGE=1 AFTER=check_pull scenario "Pull 1,000 content items" $(pull_dir $S/c1k c1k) "rm -rf ./items" ser pull $EFLAG
+  LARGE=1 scenario "Push 1,000 content items, in sync" $S/c1k "" ser push $EFLAG
+  # A developer watches the CM they are working on, so watch runs only on local.
+  [ $ENVN = local ] && watch_bench
+  LARGE=1 AFTER=check_pull scenario "Pull 10,000 content items" $(pull_dir $S/c10k c10k) "rm -rf ./items" ser pull $EFLAG
+  LARGE=1 scenario "Push 10,000 content items, in sync" $S/c10k "" ser push $EFLAG
+  # Leave the create sets as setup expects them: absent from the CM.
+  for s in c100n m100n; do (cd $S/$s && eval "$(reset_set $s)" > /dev/null 2>&1); done
 
-FRESH=1 scenario "Create 100 content items" $C100N "$(reset_set c100n)" ser push $EFLAG
-FRESH=1 scenario "Create 100 media items" $M100N "$(reset_set m100n)" ser push $EFLAG
-AFTER=check_pull scenario "Pull 100 media items" $(pull_dir $M100 m100p) "rm -rf ./items" ser pull $EFLAG
-AFTER=check_pull scenario "Pull 1,000 content items" $(pull_dir $C1K c1kp) "rm -rf ./items" ser pull $EFLAG
-scenario "Push 1,000 content items, in sync" $C1K "" ser push $EFLAG
-if [ $MODE = full ]; then
-  FRESH=1 scenario "Create 1,000 content items" $C1KN "$(reset_set c1kn)" ser push $EFLAG
-  FRESH=1 scenario "Create 1,000 media items" $M1KN "$(reset_set m1kn)" ser push $EFLAG
-  for d in $C100N $M100N $C1KN $M1KN; do (cd $d && dotnet sitecore ser push -w $EFLAG 2>&1 | grep -q "Discovered 0 changes after evaluating") || echo "  CREATE CHECK FAILED: the Sitecore CLI still sees changes in $d"; done
-  AFTER=check_pull scenario "Pull 1,000 media items" $(pull_dir $M1K m1kp) "rm -rf ./items" ser pull $EFLAG
-  AFTER=check_pull scenario "Pull 10,000 content items" $(pull_dir $C10K c10kp) "rm -rf ./items" ser pull $EFLAG
-  scenario "Push 10,000 content items, in sync" $C10K "" ser push $EFLAG
-fi
-# Delete what the creates made, after the run and without holding it up.
-( for s in $CREATE_SETS; do (cd $B/sets/$s && eval "$(reset_set $s)" > /dev/null 2>&1); done; rm -f $JANITOR ) > /dev/null 2>&1 &
-echo $! > $JANITOR
-
-# --- correctness suites (full, local) -------------------------------------------------------------
-if [ $MODE = full ] && [ $ENVN = local ]; then
-  for t in $TOOLS; do
-    case $t in official|official7) continue ;; esac
-    echo "== correctness: $t"
-    (cd $REPO && dotnet test --solution Tern.slnx -c Release 2>&1 | grep -E "^\s+(total|failed|succeeded):" | tr -s ' ' | tr '\n' ' '); echo
-    (cd $REPO && bash tests/differential/push-diff.sh $F $B/$t/tern.exe 2>&1 | grep -E "PASS|FAIL" | tr '\n' ' '); echo
-    python "$SCR/cmdtree-check.py" "$(cygpath -w $B/v7/allplugins)" "$(cygpath -w $B/$t/tern.exe)" "$(cygpath -w $B/tree-cli7.json)"
-  done
-fi
-
-echo "== $MODE suite, $ENVN, tools: $TOOLS, $(( $(date +%s) - START )) s (setup ${SETUP} s) -> $OUT"
-CACHE=$B/results/cli-$ENVN.tsv
-if [ "${CLI:-0}" = 1 ]; then
-  # Keep this run's CLI rows, replacing earlier ones for the same scenarios.
-  python - "$(cygpath -w $OUT)" "$(cygpath -w $CACHE)" <<'PY'
-import os, sys
-out, cache = sys.argv[1], sys.argv[2]
-new = [l for l in open(out, encoding="utf-8") if l.split("	")[1] in ("official", "official7")]
-key = lambda l: tuple(l.split("	")[:2])
-fresh = {key(l) for l in new}
-old = [l for l in open(cache, encoding="utf-8")] if os.path.exists(cache) else []
-open(cache, "w", encoding="utf-8").writelines([l for l in old if key(l) not in fresh] + new)
-PY
+  echo "== $ENVN: $(( $(date +%s) - T0 )) s -> $OUT"
   python "$SCR/report.py" "$(cygpath -w $OUT)" $TOOLS
-elif [ -f $CACHE ]; then
-  cat $CACHE $OUT > $LOG/combined.tsv
-  echo "(Sitecore CLI columns are the saved numbers from $(date -r $CACHE '+%Y-%m-%d %H:%M'); CLI=1 measures them again)"
-  python "$SCR/report.py" "$(cygpath -w $LOG/combined.tsv)" official official7 $TOOLS
-else
-  python "$SCR/report.py" "$(cygpath -w $OUT)" $TOOLS
-fi
+done
+echo "== total $(( $(date +%s) - START )) s"

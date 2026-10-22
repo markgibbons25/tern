@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
+
 using Tern.Core.Configuration;
 using Tern.Core.Items;
 using Tern.Core.Trees;
@@ -15,6 +17,7 @@ public sealed record HistoryEntry(Guid Id, string Path, string Database, string?
 /// and <c>history</c> for the Change history. Requests are batched as aliased fields and sent in
 /// parallel; both limits are settings, so the benchmarks can tune them (ADR 0005).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim needs disposing only after AvailableWaitHandle is used.")]
 public sealed class SerializationApi(ManagementClient client, SerializationApiOptions? options = null)
 {
     private static string Alias(int n) => "a" + n.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -28,12 +31,12 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
     public SerializationApiOptions Options => _options;
 
     public Task<IReadOnlyList<ItemMetadata>[]> GetMetadataAsync(IReadOnlyList<SerializeRequest> requests, CancellationToken ct) =>
-        RunBatchesAsync(requests, metadata: true, ct, e => ParseMetadata(e));
+        RunBatchesAsync(requests, metadata: true, e => ParseMetadata(e), null, ct);
 
     public async Task<IReadOnlyDictionary<Guid, ItemData>> GetItemDataAsync(string database, IReadOnlyCollection<Guid> ids, IReadOnlyList<Guid> excludedFieldIds, CancellationToken ct)
     {
         var requests = ids.Select(id => new SerializeRequest(id.ToString("D"), database, TreeScope.SingleItem, excludedFieldIds)).ToList();
-        var results = await RunBatchesAsync(requests, metadata: false, ct, e => ItemDataJson.Parse(e.GetProperty("data")));
+        var results = await RunBatchesAsync(requests, metadata: false, e => ItemDataJson.Parse(e.GetProperty("data")), null, ct);
         var map = new Dictionary<Guid, ItemData>();
         foreach (var item in results.SelectMany(r => r))
         {
@@ -51,7 +54,7 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
     public Task StreamItemDataAsync(string database, IReadOnlyCollection<Guid> ids, IReadOnlyList<Guid> excludedFieldIds, Func<IReadOnlyList<ItemData>, Task> onBatch, CancellationToken ct)
     {
         var requests = ids.Select(id => new SerializeRequest(id.ToString("D"), database, TreeScope.SingleItem, excludedFieldIds)).ToList();
-        return RunBatchesAsync(requests, metadata: false, ct, e => ItemDataJson.Parse(e.GetProperty("data")), lists => onBatch(lists.SelectMany(l => l).ToList()));
+        return RunBatchesAsync(requests, metadata: false, e => ItemDataJson.Parse(e.GetProperty("data")), lists => onBatch(lists.SelectMany(l => l).ToList()), ct);
     }
 
     public async Task<string> GetHistoryTimestampAsync(CancellationToken ct)
@@ -82,7 +85,7 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
     }
 
     // With onBatch, each batch's results go to it, while the batch still holds its request slot, and are not kept.
-    private async Task<IReadOnlyList<T>[]> RunBatchesAsync<T>(IReadOnlyList<SerializeRequest> requests, bool metadata, CancellationToken ct, Func<JsonElement, T> parse, Func<IReadOnlyList<T>[], Task>? onBatch = null)
+    private async Task<IReadOnlyList<T>[]> RunBatchesAsync<T>(IReadOnlyList<SerializeRequest> requests, bool metadata, Func<JsonElement, T> parse, Func<IReadOnlyList<T>[], Task>? onBatch, CancellationToken ct)
     {
         var results = new IReadOnlyList<T>[requests.Count];
         // A subtree request can return thousands of items, so each one gets its own HTTP request;
@@ -151,7 +154,7 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
         return results;
     }
 
-    private static (string Query, Action<Utf8JsonWriter> Variables) BuildQuery(IReadOnlyList<SerializeRequest> batch, bool metadata)
+    private static (string Query, Action<Utf8JsonWriter> Variables) BuildQuery(List<SerializeRequest> batch, bool metadata)
     {
         var fields = metadata ? "id parentId templateId path hasChildren dataSignature" : "data";
         var declarations = new StringBuilder();
@@ -159,8 +162,8 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
         for (var n = 0; n < batch.Count; n++)
         {
             var a = Alias(n);
-            declarations.Append($"${a}P: String! ${a}D: String! ${a}E: [String] ${a}S: TreeScope! ");
-            selections.Append($"{a}: serialize(path: ${a}P, database: ${a}D, scope: ${a}S, excludedFieldIds: ${a}E) {{ {fields} }} ");
+            declarations.Append(CultureInfo.InvariantCulture, $"${a}P: String! ${a}D: String! ${a}E: [String] ${a}S: TreeScope! ");
+            selections.Append(CultureInfo.InvariantCulture, $"{a}: serialize(path: ${a}P, database: ${a}D, scope: ${a}S, excludedFieldIds: ${a}E) {{ {fields} }} ");
         }
         var query = $"query({declarations.ToString().TrimEnd()}) {{ {selections}}}";
         return (query, w =>
@@ -179,7 +182,8 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
                 w.WriteEndArray();
                 w.WriteString($"{a}S", ToGraphQl(r.Scope));
             }
-        });
+        }
+        );
     }
 
     private static string ToGraphQl(TreeScope scope) => scope switch

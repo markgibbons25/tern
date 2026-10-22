@@ -87,7 +87,7 @@ public sealed class FileItemTreeTests : IDisposable
         Pull(Item(1, 0, "/sitecore/content/Site", "Root"), Item(2, 1, "/sitecore/content/Site/A", "A"), Item(3, 1, "/sitecore/content/Site/B", "B"),
             Item(4, 3, "/sitecore/content/Site/B/Child", "Child"), Item(5, 1, "/sitecore/content/Site/Gone", "Gone"));
         var files = new FileItemTree(IncludeField, index: Index());
-        PlanOperation Op(PlanAction action, int id, string path, string? from, int parent) =>
+        static PlanOperation Op(PlanAction action, int id, string path, string? from, int parent) =>
             new() { Action = action, Module = "Test", Include = "test", Database = "master", Id = G(id), Path = path, TargetPath = from, ParentId = G(parent) };
         new FileApplier(files, IncludeField).Apply(_include,
         [
@@ -102,6 +102,8 @@ public sealed class FileItemTreeTests : IDisposable
             fromDisk.Select(f => f.Path).Order(StringComparer.Ordinal));
         Assert.Equal(G(2), fromDisk.Single(f => f.Id == G(3)).ParentId);
         Assert.Equal(Describe(new FileItemTree(IncludeField), _include), Describe(new FileItemTree(IncludeField, index: Index()), _include));
+        // The old children folders go with the files; validation would report any left empty.
+        Assert.DoesNotContain(Directory.EnumerateDirectories(_include.PhysicalRoot, "*", SearchOption.AllDirectories), d => !Directory.EnumerateFileSystemEntries(d).Any());
     }
 
     [Fact]

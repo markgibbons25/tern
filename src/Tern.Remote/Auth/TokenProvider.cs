@@ -7,6 +7,8 @@ namespace Tern.Remote.Auth;
 /// about to expire before using it (Deviation D3), and it can take client credentials from
 /// environment variables without ever writing them to disk.
 /// </summary>
+// The semaphore is never asked for its wait handle, so it holds nothing that needs disposing.
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim needs disposing only after AvailableWaitHandle is used.")]
 public sealed class TokenProvider
 {
     private static readonly TimeSpan RefreshMargin = TimeSpan.FromMinutes(2);

@@ -51,7 +51,7 @@ public static class ContentScope
     /// The Modules <paramref name="name"/> means. An exact file name, file name without
     /// <c>.module.json</c> or namespace wins; otherwise any Module whose file name ends with it.
     /// A content Module and its media twin (file names that differ only by <c>content</c> and
-    /// <c>media</c>, such as <c>migration-content-x</c> and <c>migration-media-x</c>) are one set
+    /// <c>media</c>, such as <c>content-site-a</c> and <c>media-site-a</c>) are one set
     /// rather than an ambiguity, and <paramref name="skipMedia"/> then drops the twin.
     /// </summary>
     public static List<Module> Match(IReadOnlyList<Module> candidates, string name, bool skipMedia)

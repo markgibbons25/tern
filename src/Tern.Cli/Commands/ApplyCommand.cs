@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+
 using Tern.Cli.Common;
 using Tern.Core.Planning;
 using Tern.Core.Trees;
@@ -34,35 +35,35 @@ public static class ApplyCommand
             switch (plan.Direction)
             {
                 case PlanDirection.Pull:
-                {
-                    var endpoint = session.Endpoint(parse.GetValue(environment));
-                    var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
-                    engine = new SyncEngine(new CmItemTree(session.Serialization(endpoint), [.. excluded]), files, new FileApplier(files, IncludeField), PlanDirection.Pull);
-                    break;
-                }
+                    {
+                        var endpoint = session.Endpoint(parse.GetValue(environment));
+                        var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
+                        engine = new SyncEngine(new CmItemTree(session.Serialization(endpoint), [.. excluded]), files, new FileApplier(files, IncludeField), PlanDirection.Pull);
+                        break;
+                    }
                 case PlanDirection.Push:
-                {
-                    var endpoint = session.Endpoint(parse.GetValue(environment));
-                    if (!endpoint.AllowWrite)
                     {
-                        throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes.");
+                        var endpoint = session.Endpoint(parse.GetValue(environment));
+                        if (!endpoint.AllowWrite)
+                        {
+                            throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes.");
+                        }
+                        var api = session.Serialization(endpoint);
+                        engine = new SyncEngine(new FileItemTree(IncludeField, index: session.FileIndex(excluded)), new CmItemTree(api, [.. excluded]), new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Push);
+                        break;
                     }
-                    var api = session.Serialization(endpoint);
-                    engine = new SyncEngine(new FileItemTree(IncludeField, index: session.FileIndex(excluded)), new CmItemTree(api, [.. excluded]), new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Push);
-                    break;
-                }
                 default:
-                {
-                    var s = session.Endpoint(parse.GetValue(source) ?? throw new CliException("--source is required to apply a diff Plan."));
-                    var d = session.Endpoint(parse.GetValue(destination) ?? throw new CliException("--destination is required to apply a diff Plan."));
-                    if (!d.AllowWrite)
                     {
-                        throw new CliException($"Endpoint '{d.Name}' does not allow writes.");
+                        var s = session.Endpoint(parse.GetValue(source) ?? throw new CliException("--source is required to apply a diff Plan."));
+                        var d = session.Endpoint(parse.GetValue(destination) ?? throw new CliException("--destination is required to apply a diff Plan."));
+                        if (!d.AllowWrite)
+                        {
+                            throw new CliException($"Endpoint '{d.Name}' does not allow writes.");
+                        }
+                        var targetApi = session.Serialization(d);
+                        engine = new SyncEngine(new CmItemTree(session.Serialization(s), [.. excluded]), new CmItemTree(targetApi, [.. excluded]), new CmApplier(targetApi, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Copy);
+                        break;
                     }
-                    var targetApi = session.Serialization(d);
-                    engine = new SyncEngine(new CmItemTree(session.Serialization(s), [.. excluded]), new CmItemTree(targetApi, [.. excluded]), new CmApplier(targetApi, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Copy);
-                    break;
-                }
             }
             var applied = await engine.ApplyAsync(plan, includes, checkPreconditions: true, token);
             foreach (var a in applied)

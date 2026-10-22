@@ -1,6 +1,7 @@
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
+
 using Tern.Core.Items;
 
 namespace Tern.Core.ResourcePackages;
@@ -147,6 +148,7 @@ public static class ResourcePackageWriter
     }
 
     /// <summary>The few protobuf writes the package needs.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "A MemoryStream holds only managed memory.")]
     private sealed class ProtoBuffer
     {
         private readonly MemoryStream _stream = new();

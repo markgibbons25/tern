@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+
 using Tern.Remote.Auth;
 
 namespace Tern.Remote.Management;
@@ -136,15 +138,16 @@ public sealed class ManagementClient
 /// </summary>
 public sealed class RequestRecorder(string directory)
 {
-    private int _sequence;
+    // Shared by every recorder, so the clients of a command that talks to two CMs don't overwrite each other's files.
+    private static int _sequence;
 
     public void Record(Uri endpoint, byte[] requestBody, int status, string responseBody, TimeSpan elapsed)
     {
         Directory.CreateDirectory(directory);
         var n = Interlocked.Increment(ref _sequence);
         var sb = new StringBuilder();
-        sb.AppendLine($"POST {endpoint}");
-        sb.AppendLine($"status: {status}  elapsed: {elapsed.TotalMilliseconds:F0} ms");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"POST {endpoint}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"status: {status}  elapsed: {elapsed.TotalMilliseconds:F0} ms");
         sb.AppendLine("--- request");
         sb.AppendLine(Redact(Encoding.UTF8.GetString(requestBody)));
         sb.AppendLine("--- response");

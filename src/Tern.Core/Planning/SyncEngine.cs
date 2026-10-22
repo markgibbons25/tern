@@ -42,6 +42,24 @@ public sealed class SyncEngine(IItemTree source, IItemTree target, ITreeApplier 
             var result = await planner.PlanIncludeAsync(include, warnings, ct);
             return (Result: result, Warnings: warnings);
         }));
+        return Combine(plan, planned);
+    }
+
+    /// <summary>
+    /// Plans only the named items in each Include, as <c>ser watch</c> does after a poll of the
+    /// Change history (<see cref="Planner.PlanItemsAsync"/>).
+    /// </summary>
+    public async Task<PlanResult> PlanItemsAsync(IReadOnlyList<(Include Include, IReadOnlyCollection<Guid> Ids, IReadOnlySet<Guid> Subtrees)> changes, CancellationToken ct)
+    {
+        var planner = new Planner(source, target, applyPushOperations: direction == PlanDirection.Push, force: true);
+        var plan = new Plan { Direction = direction, Source = source.Description, Target = target.Description };
+        var planned = await Task.WhenAll(changes.Select(async c =>
+            (Result: await planner.PlanItemsAsync(c.Include, c.Ids, c.Subtrees, ct), Warnings: new List<string>())));
+        return Combine(plan, planned);
+    }
+
+    private static PlanResult Combine(Plan plan, IEnumerable<(IncludePlan Result, List<string> Warnings)> planned)
+    {
         var results = new List<IncludePlan>();
         long nodes = 0;
         foreach (var (result, warnings) in planned)

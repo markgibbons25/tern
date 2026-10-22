@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+
 using Tern.Cli;
 using Tern.Cli.Common;
 using Tern.Remote.Cloud;
@@ -25,6 +26,7 @@ public class GitIgnoreTests : IDisposable
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         if (Directory.Exists(_root))
         {
             Directory.Delete(_root, recursive: true);

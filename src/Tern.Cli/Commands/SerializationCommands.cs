@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Diagnostics;
 using System.Text.Json;
+
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
 using Tern.Core.Planning;

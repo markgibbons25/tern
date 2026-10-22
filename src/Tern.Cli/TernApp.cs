@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Reflection;
+
 using Tern.Cli.Commands;
 using Tern.Cli.Common;
 

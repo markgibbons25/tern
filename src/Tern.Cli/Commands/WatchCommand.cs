@@ -1,4 +1,5 @@
 using System.CommandLine;
+
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
 using Tern.Core.Planning;
@@ -73,6 +74,7 @@ public static class WatchCommand
                 while (!stop.IsCancellationRequested)
                 {
                     await Task.Delay(delay, stop.Token);
+                    var phase = System.Diagnostics.Stopwatch.StartNew();
                     var (next, entries) = await api.GetHistoryAsync(timestamp, stop.Token);
                     timestamp = next;
                     var affected = includes.Where(i => entries.Any(e => e.Database.Equals(i.Database, StringComparison.OrdinalIgnoreCase) && Touches(i, e))).ToList();
@@ -83,16 +85,35 @@ public static class WatchCommand
                     Volatile.Write(ref writing, true);
                     try
                     {
+                        var polled = phase.ElapsedMilliseconds;
                         var files = new FileItemTree(id => !excluded.Contains(id), index: session.FileIndex(excluded));
                         var cm = new CmItemTree(api, [.. excluded]);
-                        await cm.PrefetchAsync(affected, stop.Token);
                         var engine = new SyncEngine(cm, files, new FileApplier(files, id => !excluded.Contains(id)), PlanDirection.Pull);
-                        var result = await engine.PlanAsync(affected, force: true, stop.Token);
+                        // Only the items the history names are pulled, as the Official CLI does; a burst
+                        // of changes re-pulls the whole Include, which is then the cheaper read.
+                        var changes = affected.Select(i =>
+                        {
+                            var touching = entries.Where(e => e.Database.Equals(i.Database, StringComparison.OrdinalIgnoreCase) && Touches(i, e)).ToList();
+                            return (Include: i, Ids: (IReadOnlyCollection<Guid>)touching.Select(e => e.Id).Distinct().ToList(),
+                                Subtrees: (IReadOnlySet<Guid>)touching.Where(MovesSubtree).Select(e => e.Id).ToHashSet());
+                        }).ToList();
+                        PlanResult result;
+                        if (changes.Any(c => c.Ids.Count > MaxItemsPerInclude))
+                        {
+                            await cm.PrefetchAsync(affected, stop.Token);
+                            result = await engine.PlanAsync(affected, force: true, stop.Token);
+                        }
+                        else
+                        {
+                            result = await engine.PlanItemsAsync(changes, stop.Token);
+                        }
+                        var planned = phase.ElapsedMilliseconds;
                         foreach (var op in result.Plan.Operations)
                         {
                             output.Line($"[{op.Database}] {SyncRunner.Describe(op)}");
                         }
                         await engine.ApplyAsync(result.Plan, affected, checkPreconditions: false, stop.Token);
+                        output.Debug($"Watch: {entries.Count} history entries; poll {polled} ms, plan {planned - polled} ms ({result.NodesEvaluated} items), apply {phase.ElapsedMilliseconds - planned} ms.");
                         // Give the file watcher time to deliver our own writes before listening again.
                         await Task.Delay(250, stop.Token);
                     }
@@ -118,6 +139,16 @@ public static class WatchCommand
         }, ct));
         return cmd;
     }
+
+    /// <summary>Above this many changed items in one Include, a poll re-pulls the whole Include.</summary>
+    private const int MaxItemsPerInclude = 100;
+
+    /// <summary>A move, rename or copy changes the paths of everything below the item, so its subtree is walked.</summary>
+    internal static bool MovesSubtree(HistoryEntry entry) =>
+        (!string.IsNullOrEmpty(entry.OldPath) && !entry.OldPath.Equals(entry.Path, StringComparison.OrdinalIgnoreCase))
+        || entry.ChangeType.Contains("move", StringComparison.OrdinalIgnoreCase)
+        || entry.ChangeType.Contains("rename", StringComparison.OrdinalIgnoreCase)
+        || entry.ChangeType.Contains("cop", StringComparison.OrdinalIgnoreCase);
 
     private static bool Touches(Include include, HistoryEntry entry)
     {

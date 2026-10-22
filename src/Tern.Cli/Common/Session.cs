@@ -1,4 +1,5 @@
 using System.Net;
+
 using Tern.Core.Configuration;
 using Tern.Core.Trees;
 using Tern.Remote.Auth;
@@ -113,6 +114,9 @@ public sealed class Session : IDisposable
 
     public ManagementClient Management(Endpoint endpoint) =>
         new(Http, endpoint.Host!, Tokens(endpoint), RecordDirectory is null ? null : new RequestRecorder(RecordDirectory));
+
+    /// <summary>Plain REST calls to the Endpoint's CM, such as the transfer APIs.</summary>
+    public Tern.Remote.Transfer.CmRestClient Rest(Endpoint endpoint) => new(Http, endpoint.Host!, Tokens(endpoint));
 
     public SerializationApi Serialization(Endpoint endpoint) =>
         new(Management(endpoint), new SerializationApiOptions

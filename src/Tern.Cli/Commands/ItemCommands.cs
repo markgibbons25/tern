@@ -1,6 +1,8 @@
 using System.CommandLine;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
+
 using Tern.Cli.Common;
 using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
@@ -67,7 +69,7 @@ public static class ItemCommands
     private static async Task<ItemData?> GetSingleAsync(SerializationApi api, SerializeRequest request, CancellationToken ct)
     {
         var metadata = await api.GetMetadataAsync([request], ct);
-        var found = metadata[0].FirstOrDefault();
+        var found = metadata[0].Count > 0 ? metadata[0][0] : null;
         if (found is null)
         {
             return null;
@@ -156,7 +158,7 @@ public static class ItemCommands
                 {
                     foreach (var f in showFields)
                     {
-                        line.Append($"  {f}={FieldValues(item, f).FirstOrDefault()}");
+                        line.Append(CultureInfo.InvariantCulture, $"  {f}={FieldValues(item, f).FirstOrDefault()}");
                     }
                 }
                 session.Output.Line(line.ToString());

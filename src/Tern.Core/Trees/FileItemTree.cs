@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Enumeration;
+
 using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
 using Tern.Core.Items;

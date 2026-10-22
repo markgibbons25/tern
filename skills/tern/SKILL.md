@@ -32,6 +32,7 @@ tern apply push.json                          # refuses if anything changed sinc
 | Find items | `tern item query /sitecore/content/Site --template <id> --field "Title=*News*" --show Title --json` |
 | What differs between two Endpoints | `tern ser diff -s dev -d uat -i <module> --json` |
 | The same for a module not in sitecore.json, or one item path | `tern content diff -s prod -d uat -m <module> --json`, `-p <item path>` |
+| What a Content Transfer API copy would carry | `tern content transfer -s dev -d uat -m <module> -w --json` |
 | CM version and features | `tern env info` |
 
 ## Logging in without prompts

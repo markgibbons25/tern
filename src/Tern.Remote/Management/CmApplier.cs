@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+
 using Tern.Core.Configuration;
 using Tern.Core.Items;
 using Tern.Core.Planning;
@@ -86,37 +87,37 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
             switch (op.Action)
             {
                 case PlanAction.Create:
-                {
-                    var item = Source(op);
-                    WarnEmptyVersions(item);
-                    commands.Add(new Command(op, item.AllFields.Sum(f => (long)f.Value.Length + 100) + 200,
-                        w => WriteCommand(w, op.Id, item.ParentId, include.Database, "CREATE", Serialize(x => ItemDataJson.Write(x, item)))));
-                    break;
-                }
-                case PlanAction.Update:
-                {
-                    var source = Source(op);
-                    var target = targetData.GetValueOrDefault(op.Id) ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be updated, in the CM.");
-                    WarnEmptyVersions(source);
-                    var payload = UpdatePayload(source, target);
-                    if (payload is null)
                     {
-                        log?.Invoke($"Skipping empty update command [U] {op.Path} ({op.Id}).");
-                        continue;
+                        var item = Source(op);
+                        WarnEmptyVersions(item);
+                        commands.Add(new Command(op, item.AllFields.Sum(f => (long)f.Value.Length + 100) + 200,
+                            w => WriteCommand(w, op.Id, item.ParentId, include.Database, "CREATE", Serialize(x => ItemDataJson.Write(x, item)))));
+                        break;
                     }
-                    commands.Add(new Command(op, payload.Length + 200, w => WriteCommand(w, op.Id, source.ParentId, include.Database, "UPDATE", payload)));
-                    break;
-                }
+                case PlanAction.Update:
+                    {
+                        var source = Source(op);
+                        var target = targetData.GetValueOrDefault(op.Id) ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be updated, in the CM.");
+                        WarnEmptyVersions(source);
+                        var payload = UpdatePayload(source, target);
+                        if (payload is null)
+                        {
+                            log?.Invoke($"Skipping empty update command [U] {op.Path} ({op.Id}).");
+                            continue;
+                        }
+                        commands.Add(new Command(op, payload.Length + 200, w => WriteCommand(w, op.Id, source.ParentId, include.Database, "UPDATE", payload)));
+                        break;
+                    }
                 case PlanAction.Move:
                     // The command addresses the item where it is now; its data is the new parent.
                     Add(op, currentParents.GetValueOrDefault(op.Id, op.ParentId), "MOVE", Serialize(x => x.WriteStringValue(op.ParentId)));
                     break;
                 case PlanAction.Rename:
-                {
-                    var name = ItemPath.Parse(op.Path).Name;
-                    Add(op, op.ParentId, "RENAME", Serialize(x => x.WriteStringValue(name)));
-                    break;
-                }
+                    {
+                        var name = ItemPath.Parse(op.Path).Name;
+                        Add(op, op.ParentId, "RENAME", Serialize(x => x.WriteStringValue(name)));
+                        break;
+                    }
                 case PlanAction.Delete:
                     Add(op, op.ParentId, "RECYCLE", "{}");
                     break;
@@ -178,7 +179,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
     }
 
     /// <summary>Where each moving item is now, looked up for all the moves together.</summary>
-    private async Task<Dictionary<Guid, Guid>> CurrentParentsAsync(Include include, IReadOnlyList<PlanOperation> moves, CancellationToken ct)
+    private async Task<Dictionary<Guid, Guid>> CurrentParentsAsync(Include include, List<PlanOperation> moves, CancellationToken ct)
     {
         var parents = new Dictionary<Guid, Guid>();
         if (moves.Count == 0)
@@ -188,7 +189,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         var metadata = await api.GetMetadataAsync(moves.Select(m => new SerializeRequest(m.Id.ToString("D"), include.Database, TreeScope.SingleItem, excludedFieldIds)).ToList(), ct);
         for (var n = 0; n < moves.Count; n++)
         {
-            if (metadata[n].FirstOrDefault() is { } current)
+            if (metadata[n].Count > 0 && metadata[n][0] is { } current)
             {
                 parents[moves[n].Id] = current.ParentId;
             }
@@ -226,7 +227,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         for (var i = 0; i < operations.Count; i++)
         {
             var op = operations[i];
-            var now = current[i].FirstOrDefault();
+            var now = current[i].Count > 0 ? current[i][0] : null;
             var ok = op.Action == PlanAction.Create ? now is null : now is not null && now.Signature == op.ExpectedSignature;
             if (!ok)
             {

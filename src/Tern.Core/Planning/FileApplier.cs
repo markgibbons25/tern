@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+
 using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
 using Tern.Core.Items;
@@ -98,124 +99,155 @@ public sealed class FileApplier(FileItemTree files, Func<Guid, bool> includeFiel
             {
                 case PlanAction.Create:
                 case PlanAction.Update:
-                {
-                    // A run of creates and updates touches one file each, so the run is written in
-                    // parallel; old files are removed afterwards unless the run rewrote them.
-                    var end = at;
-                    while (end < operations.Count && operations[end].Action is PlanAction.Create or PlanAction.Update)
                     {
-                        end++;
-                    }
-                    var run = operations.Skip(at).Take(end - at).ToList();
-                    var wanted = run.Select(o => o.Id).ToHashSet();
-                    // The source's own Signature is what the file will have; the Official CLI's .scindex keeps the same.
-                    var signatures = run.Where(o => o.SourceSignature is not null).GroupBy(o => o.Id).ToDictionary(g => g.Key, g => g.First().SourceSignature!);
-                    var arrived = new ConcurrentDictionary<Guid, (string File, ItemData Item, string Signature)>();
-                    // Batches arrive at the same time, so each one is written in order without more threads.
-                    await stream(wanted, batch =>
-                    {
-                        foreach (var item in batch)
+                        // A run of creates and updates touches one file each, so the run is written in
+                        // parallel; old files are removed afterwards unless the run rewrote them.
+                        var end = at;
+                        while (end < operations.Count && operations[end].Action is PlanAction.Create or PlanAction.Update)
                         {
-                            ct.ThrowIfCancellationRequested();
-                            if (wanted.Contains(item.Id))
+                            end++;
+                        }
+                        var run = operations.Skip(at).Take(end - at).ToList();
+                        var wanted = run.Select(o => o.Id).ToHashSet();
+                        // The source's own Signature is what the file will have; the Official CLI's .scindex keeps the same.
+                        var signatures = run.Where(o => o.SourceSignature is not null).GroupBy(o => o.Id).ToDictionary(g => g.Key, g => g.First().SourceSignature!);
+                        var arrived = new ConcurrentDictionary<Guid, (string File, ItemData Item, string Signature)>();
+                        // Batches arrive at the same time, so each one is written in order without more threads.
+                        await stream(wanted, batch =>
+                        {
+                            foreach (var item in batch)
                             {
-                                var (file, written, signature) = Write(paths, item, signatures.GetValueOrDefault(item.Id));
-                                arrived[item.Id] = (file, Header(written), signature);
+                                ct.ThrowIfCancellationRequested();
+                                if (wanted.Contains(item.Id))
+                                {
+                                    var (file, written, signature) = Write(paths, item, signatures.GetValueOrDefault(item.Id));
+                                    arrived[item.Id] = (file, Header(written), signature);
+                                }
                             }
-                        }
-                        return Task.CompletedTask;
-                    });
-                    var missing = run.FirstOrDefault(o => !arrived.ContainsKey(o.Id));
-                    if (missing is not null)
-                    {
-                        throw new InvalidOperationException($"No source data was fetched for {missing.Path}.");
-                    }
-                    var newFiles = new HashSet<string>(arrived.Values.Select(w => w.File), StringComparer.OrdinalIgnoreCase);
-                    foreach (var o in run)
-                    {
-                        var w = arrived[o.Id];
-                        if (index.TryGetValue(o.Id, out var old) && !newFiles.Contains(old.File) && File.Exists(old.File))
+                            return Task.CompletedTask;
+                        });
+                        var missing = run.FirstOrDefault(o => !arrived.ContainsKey(o.Id));
+                        if (missing is not null)
                         {
-                            File.Delete(old.File);
-                            Removed(old.File);
+                            throw new InvalidOperationException($"No source data was fetched for {missing.Path}.");
                         }
-                        index[o.Id] = new Entry(w.File, ItemPath.Parse(w.Item.Path), w.Signature);
-                        Wrote(w);
-                        applied.Add(new AppliedOperation(o, w.File));
+                        var newFiles = new HashSet<string>(arrived.Values.Select(w => w.File), StringComparer.OrdinalIgnoreCase);
+                        foreach (var o in run)
+                        {
+                            var w = arrived[o.Id];
+                            if (index.TryGetValue(o.Id, out var old) && !newFiles.Contains(old.File) && File.Exists(old.File))
+                            {
+                                File.Delete(old.File);
+                                Removed(old.File);
+                            }
+                            index[o.Id] = new Entry(w.File, ItemPath.Parse(w.Item.Path), w.Signature);
+                            Wrote(w);
+                            applied.Add(new AppliedOperation(o, w.File));
+                        }
+                        at = end - 1;
+                        break;
                     }
-                    at = end - 1;
-                    break;
-                }
                 case PlanAction.Move:
                 case PlanAction.Rename:
-                {
-                    if (!index.TryGetValue(op.Id, out var entry))
                     {
-                        throw new InvalidOperationException($"Existing item path {op.TargetPath} of move/rename to {op.Path} didn't exist!");
-                    }
-                    var oldPath = entry.Path;
-                    var newPath = op.Action == PlanAction.Move
-                        ? ItemPath.Parse(op.Path).Parent.Append(oldPath.Name)
-                        : oldPath.Parent.Append(ItemPath.Parse(op.Path).Name);
-                    var moving = index.Where(kv => kv.Value.Path.IsDescendantOrSelfOf(oldPath)).ToList();
-                    var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var (id, (file, path, signature)) in moving)
-                    {
-                        var item = ItemFileReader.Read(File.ReadAllBytes(file), file, includeField);
-                        var relative = path.RelativeTo(oldPath)!;
-                        var rebased = Rebase(item, newPath.Concat(relative).ToString(), id == op.Id && op.Action == PlanAction.Move ? op.ParentId : item.ParentId);
-                        var target = paths.FileFor(ItemPath.Parse(rebased.Path));
-                        if (target is null)
+                        if (!index.TryGetValue(op.Id, out var entry))
                         {
-                            continue;
+                            throw new InvalidOperationException($"Existing item path {op.TargetPath} of move/rename to {op.Path} didn't exist!");
                         }
-                        // A move or rename changes no fields, so the Signature stays the same.
-                        var w = Write(paths, rebased, signature);
-                        Wrote(w);
-                        written.Add(target);
-                        index[id] = new Entry(target, ItemPath.Parse(rebased.Path), w.Signature);
+                        var oldPath = entry.Path;
+                        var newPath = op.Action == PlanAction.Move
+                            ? ItemPath.Parse(op.Path).Parent.Append(oldPath.Name)
+                            : oldPath.Parent.Append(ItemPath.Parse(op.Path).Name);
+                        var moving = index.Where(kv => kv.Value.Path.IsDescendantOrSelfOf(oldPath)).ToList();
+                        var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var (id, (file, path, signature)) in moving)
+                        {
+                            var item = ItemFileReader.Read(File.ReadAllBytes(file), file, includeField);
+                            var relative = path.RelativeTo(oldPath)!;
+                            var rebased = Rebase(item, newPath.Concat(relative).ToString(), id == op.Id && op.Action == PlanAction.Move ? op.ParentId : item.ParentId);
+                            var target = paths.FileFor(ItemPath.Parse(rebased.Path));
+                            if (target is null)
+                            {
+                                continue;
+                            }
+                            // A move or rename changes no fields, so the Signature stays the same.
+                            var w = Write(paths, rebased, signature);
+                            Wrote(w);
+                            written.Add(target);
+                            index[id] = new Entry(target, ItemPath.Parse(rebased.Path), w.Signature);
+                        }
+                        foreach (var (_, (file, _, _)) in moving)
+                        {
+                            if (!written.Contains(file) && File.Exists(file))
+                            {
+                                File.Delete(file);
+                                Removed(file);
+                            }
+                        }
+                        // The old children folders are empty now; left behind, validation reports
+                        // them (EmptyFolder) and the next pull refuses to apply anything.
+                        foreach (var folder in paths.ChildrenFoldersFor(oldPath))
+                        {
+                            if (RemoveEmptyFolders(folder))
+                            {
+                                _folders.Clear();
+                            }
+                        }
+                        applied.Add(new AppliedOperation(op, index[op.Id].File));
+                        break;
                     }
-                    foreach (var (_, (file, _, _)) in moving)
+                case PlanAction.Delete:
                     {
-                        if (!written.Contains(file) && File.Exists(file))
+                        var path = ItemPath.Parse(op.TargetPath ?? op.Path);
+                        var file = paths.FileFor(path);
+                        if (file is not null && File.Exists(file))
                         {
                             File.Delete(file);
                             Removed(file);
                         }
-                    }
-                    applied.Add(new AppliedOperation(op, index[op.Id].File));
-                    break;
-                }
-                case PlanAction.Delete:
-                {
-                    var path = ItemPath.Parse(op.TargetPath ?? op.Path);
-                    var file = paths.FileFor(path);
-                    if (file is not null && File.Exists(file))
-                    {
-                        File.Delete(file);
-                        Removed(file);
-                    }
-                    foreach (var folder in paths.ChildrenFoldersFor(path))
-                    {
-                        if (Directory.Exists(folder))
+                        foreach (var folder in paths.ChildrenFoldersFor(path))
                         {
-                            Directory.Delete(folder, recursive: true);
-                            _folders.Clear();
+                            if (Directory.Exists(folder))
+                            {
+                                Directory.Delete(folder, recursive: true);
+                                _folders.Clear();
+                            }
                         }
+                        foreach (var (id, gone) in index.Where(kv => kv.Value.Path.IsDescendantOrSelfOf(path)).ToList())
+                        {
+                            index.Remove(id);
+                            Removed(gone.File);
+                        }
+                        applied.Add(new AppliedOperation(op, file));
+                        break;
                     }
-                    foreach (var (id, gone) in index.Where(kv => kv.Value.Path.IsDescendantOrSelfOf(path)).ToList())
-                    {
-                        index.Remove(id);
-                        Removed(gone.File);
-                    }
-                    applied.Add(new AppliedOperation(op, file));
-                    break;
-                }
             }
         }
         files.Invalidate(include);
         files.Remember(include, writtenFiles.Values.Select(w => (w.File, w.Header, w.Signature)).ToList(), removedFiles);
         return applied;
+    }
+
+    /// <summary>
+    /// Removes <paramref name="folder"/> and the folders below it, deepest first, wherever no file
+    /// is left. Returns whether any folder was removed.
+    /// </summary>
+    private static bool RemoveEmptyFolders(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return false;
+        }
+        var removed = false;
+        foreach (var sub in Directory.EnumerateDirectories(folder, "*", SearchOption.AllDirectories).OrderByDescending(d => d.Length).Append(folder))
+        {
+            if (!Directory.EnumerateFileSystemEntries(sub).Any())
+            {
+                Directory.Delete(sub);
+                removed = true;
+            }
+        }
+        return removed;
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ Tern's own settings live outside `sitecore.json` ([ADR 0011](adr/0011-tern-setti
 
 ## Why the defaults are what they are
 
-Measured on 2026-10-20 against a local SitecoreAI container and a SitecoreAI CM (`dev-mark`), with the scenarios of the benchmark suite. In both places the CM, not the client, sets the pace, so most settings change little:
+Measured on 2026-10-20 against a local SitecoreAI container and a SitecoreAI CM used only for testing, with the scenarios of the benchmark suite. In both places the CM, not the client, sets the pace, so most settings change little:
 
 - **`parallelRequests`.** Four is too few on SitecoreAI (a 1,000-item pull took 0.99 s, against 0.80 s at eight). Beyond eight, nothing changes on either CM.
 - **`aliasesPerRequest`.** One item per request is 2.6 times slower than 26. From 10 to 100 the difference is noise.

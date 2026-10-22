@@ -1,0 +1,167 @@
+name: Release
+
+# Packs Tern.Cli and Tern.Cli.Compat as RID-specific Native AOT tools and pushes them to nuget.org.
+# Native AOT can't cross-compile between operating systems, so each RID package is built on a
+# matching runner; the top-level packages only point at them, so they are packed once.
+#
+# Pushing a v* tag publishes. A manual run packs and verifies, and publishes only when asked.
+# nuget.org accepts the push through Trusted Publishing: the job trades its GitHub OIDC token for
+# a short-lived API key, so no NuGet key is stored in the repository.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push the packages to nuget.org
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The version lives in Directory.Build.props; a tag only says which commit ships it.
+      - name: Read the version
+        id: version
+        shell: bash
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)
+          [ -n "$version" ] || { echo "::error::No <Version> in Directory.Build.props"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Directory.Build.props"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  pack-rid:
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack Tern.Cli (${{ matrix.rid }})
+        run: dotnet pack src/Tern.Cli -c Release -r ${{ matrix.rid }} -o artifacts/nupkg
+
+      - name: Pack Tern.Cli.Compat (${{ matrix.rid }})
+        run: dotnet pack src/Tern.Cli.Compat -c Release -r ${{ matrix.rid }} -o artifacts/nupkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg-${{ matrix.rid }}
+          path: artifacts/nupkg/*.nupkg
+          if-no-files-found: error
+
+  pack:
+    needs: [version, pack-rid]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack the top-level packages
+        run: |
+          dotnet pack src/Tern.Cli -c Release -o artifacts/nupkg
+          dotnet pack src/Tern.Cli.Compat -c Release -o artifacts/nupkg
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nupkg-*
+          path: artifacts/nupkg
+          merge-multiple: true
+
+      # Both top-level packages and all six RID packages, at the version being released.
+      - name: Check the package set
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          missing=0
+          for id in Tern.Cli Tern.Cli.Compat; do
+            for suffix in "" .win-x64 .linux-x64 .osx-x64; do
+              f="artifacts/nupkg/$id$suffix.$VERSION.nupkg"
+              [ -f "$f" ] || { echo "::error::Missing $f"; missing=1; }
+            done
+          done
+          ls -l artifacts/nupkg
+          exit $missing
+
+      # Installs each tool from the local folder the way a user would from nuget.org, so the
+      # top-level package resolves its linux-x64 package, and runs it.
+      - name: Install and run from the packages
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          dotnet tool install Tern.Cli --version "$VERSION" --tool-path tools/tern --add-source artifacts/nupkg
+          dotnet tool install Tern.Cli.Compat --version "$VERSION" --tool-path tools/compat --add-source artifacts/nupkg
+          tools/tern/tern --version
+          tools/compat/sitecore --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/nupkg/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    needs: pack
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+          path: nupkg
+
+      - name: Sign in to nuget.org
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # RID packages first: the top-level package is only installable once they exist.
+      - name: Push to nuget.org
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          source=https://api.nuget.org/v3/index.json
+          for f in nupkg/*.{win,linux,osx}-*.nupkg; do
+            dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
+          done
+          for f in nupkg/Tern.Cli.[0-9]*.nupkg nupkg/Tern.Cli.Compat.[0-9]*.nupkg; do
+            dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
+          done

@@ -31,6 +31,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      # The analyzers and the .editorconfig's code style are checked by the build itself; this
+      # checks formatting, which is the same on every platform, so it runs once.
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: dotnet format Tern.slnx --verify-no-changes
+
       - name: Build
         run: dotnet build Tern.slnx -c Release
 
