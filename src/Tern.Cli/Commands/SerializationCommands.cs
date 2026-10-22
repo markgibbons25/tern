@@ -37,8 +37,11 @@ public static class SerializationCommands
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, _) =>
         {
             var modules = session.SelectModules(parse.GetValue(include)!, parse.GetValue(exclude)!);
+            var root = session.Root;
             session.Output.Document("ser info", w =>
             {
+                w.WriteNumber("maxRelativeItemPathLength", root.DefaultMaxRelativeItemPathLength);
+                WriteExcludedFields(w, root.ExcludedFields);
                 w.WriteStartArray("modules");
                 foreach (var m in modules)
                 {
@@ -48,6 +51,7 @@ public static class SerializationCommands
                     w.WriteStartArray("references");
                     m.References.ToList().ForEach(w.WriteStringValue);
                     w.WriteEndArray();
+                    WriteExcludedFields(w, m.ExcludedFields);
                     w.WriteStartArray("includes");
                     foreach (var i in m.Includes)
                     {
@@ -58,6 +62,7 @@ public static class SerializationCommands
                         w.WriteString("scope", i.Scope.ToString());
                         w.WriteString("allowedPushOperations", i.PushOperations.ToString());
                         w.WriteString("physicalPath", i.PhysicalRoot);
+                        w.WriteNumber("maxRelativePathLength", i.MaxRelativePathLength);
                         w.WriteEndObject();
                     }
                     w.WriteEndArray();
@@ -65,16 +70,26 @@ public static class SerializationCommands
                 }
                 w.WriteEndArray();
             });
+            session.Output.Line($"Maximum subtree-relative item path allowed: {root.DefaultMaxRelativeItemPathLength}");
+            foreach (var f in root.ExcludedFields)
+            {
+                session.Output.Line($"Excluded field: {FormatExcludedField(f)}");
+            }
             foreach (var m in modules)
             {
-                session.Output.Line($"{m.Namespace} ({Path.GetRelativePath(session.Root.RootDirectory, m.SourcePath)})");
+                session.Output.Line($"{m.Namespace} ({Path.GetRelativePath(root.RootDirectory, m.SourcePath)})");
                 if (m.References.Count > 0)
                 {
                     session.Output.Line($"  References: {string.Join(", ", m.References)}");
                 }
+                foreach (var f in m.ExcludedFields)
+                {
+                    session.Output.Line($"  Excluded field: {FormatExcludedField(f)}");
+                }
                 foreach (var i in m.Includes)
                 {
-                    session.Output.Line($"  [{i.Database}] {i.Name}: {i.Path} ({i.Scope}, {i.PushOperations}) -> {Path.GetRelativePath(session.Root.RootDirectory, i.PhysicalRoot)}");
+                    var maxPath = i.MaxRelativePathLength == root.DefaultMaxRelativeItemPathLength ? string.Empty : $", max path {i.MaxRelativePathLength}";
+                    session.Output.Line($"  [{i.Database}] {i.Name}: {i.Path} ({i.Scope}, {i.PushOperations}{maxPath}) -> {Path.GetRelativePath(root.RootDirectory, i.PhysicalRoot)}");
                     foreach (var r in i.Rules)
                     {
                         session.Output.Line($"      rule {r.Path}: {r.Scope}{(r.PushOperations is { } o ? ", " + o : string.Empty)}{(r.Alias is { } a ? ", alias " + a : string.Empty)}");
@@ -93,6 +108,25 @@ public static class SerializationCommands
         }, ct));
         return cmd;
     }
+
+    private static void WriteExcludedFields(Utf8JsonWriter w, IReadOnlyList<ExcludedField> fields)
+    {
+        w.WriteStartArray("excludedFields");
+        foreach (var f in fields)
+        {
+            w.WriteStartObject();
+            w.WriteString("fieldId", f.FieldId);
+            if (f.Description is { } description)
+            {
+                w.WriteString("description", description);
+            }
+            w.WriteEndObject();
+        }
+        w.WriteEndArray();
+    }
+
+    private static string FormatExcludedField(ExcludedField f) =>
+        f.Description is { } description ? $"{f.FieldId} ({description})" : f.FieldId.ToString();
 
     private static Command Explain()
     {

@@ -18,8 +18,9 @@ Find every place the Sitecore CLI is installed or called:
 - Callers: search the repo for `dotnet sitecore` and `sitecore ` in scripts (`*.ps1`, `*.sh`, `*.cmd`), CI pipelines (`.github/workflows`, `azure-pipelines*.yml`, `*.yml` under build folders), Dockerfiles, `package.json` scripts and READMEs.
 - CI steps that install the Sitecore CLI: `dotnet tool restore`, or `dotnet tool install sitecore.cli`.
 - `sitecore.json`: its `plugins` list and Sitecore CLI version (6.x or 7.x). Tern reads both.
+- Content sync and diff scripts: scripts that copy or compare content between environments with the Sitecore CLI. Signs of one: `ser pull` from one Endpoint then `ser push` to another, `ser diff` between two Endpoints, rewriting the `modules` list in `sitecore.json` (or writing a temporary module) and restoring it, logging in again with client credentials on every run, or deleting the items folder before a pull.
 
-Done when you can list the manifest entry, the package sources, the CI install steps, and every caller with its file and line. Show the user that list before changing anything.
+Done when you can list the manifest entry, the package sources, the CI install steps, every caller with its file and line, and any content sync or diff scripts. Show the user that list before changing anything.
 
 ## 2. Record the baseline
 
@@ -69,6 +70,7 @@ Done when every check matches. A mismatch is a finding: stop, show the user both
 Tell the user:
 
 - What changed: each edited file, the removed manifest entry, and `nuget.config` if touched.
+- **Content sync and diff scripts** from step 1: they work as they are after the replace, but Tern's `content sync`, `content diff` and `content transfer` can take their place. Show the user, for each script, the Tern command that does its job, using the table in [docs/content.md](https://github.com/markgibbons25/tern/blob/main/docs/content.md#replacing-a-content-sync-script) (for example, rewriting `sitecore.json` to pick a module becomes `-m <module>`). Suggest it; replace a script only if the user asks.
 - **Every developer** runs `dotnet tool install --global Tern.Cli` once; the README or setup script should say so.
 - **Plugins**: `sitecore.json`'s `plugins` list and `.sitecore/package-cache` can stay; Tern ignores them.
 - **Logins**: Tern reads and writes the same `.sitecore/user.json`, so existing logins carry over. CI can keep its `login --client-credentials` step, or set `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_<ENDPOINT>_CLIENT_ID` and so on) and skip it.
