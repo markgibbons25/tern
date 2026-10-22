@@ -27,7 +27,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The version lives in Directory.Build.props; a tag only says which commit ships it.
       - name: Read the version
@@ -56,9 +56,9 @@ jobs:
             rid: osx-x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -68,7 +68,7 @@ jobs:
       - name: Pack Tern.Cli.Compat (${{ matrix.rid }})
         run: dotnet pack src/Tern.Cli.Compat -c Release -r ${{ matrix.rid }} -o artifacts/nupkg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nupkg-${{ matrix.rid }}
           path: artifacts/nupkg/*.nupkg
@@ -78,9 +78,9 @@ jobs:
     needs: [version, pack-rid]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -89,7 +89,7 @@ jobs:
           dotnet pack src/Tern.Cli -c Release -o artifacts/nupkg
           dotnet pack src/Tern.Cli.Compat -c Release -o artifacts/nupkg
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: nupkg-*
           path: artifacts/nupkg
@@ -123,7 +123,7 @@ jobs:
           tools/tern/tern --version
           tools/compat/sitecore --version
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nupkg
           path: artifacts/nupkg/*.nupkg
@@ -137,11 +137,11 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nupkg
           path: nupkg
