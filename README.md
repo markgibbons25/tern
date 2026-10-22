@@ -23,16 +23,9 @@ Measured against Sitecore CLI 7 on the same project and the same CM ([details](#
 | Full push, nothing to change, SitecoreAI | 3.9 s | **0.4 s** | 10× faster |
 | Pull 1,000 items, SitecoreAI | 2.6 s | **1.2 s** | 2× faster |
 
-And for bulk copies between environments, `content transfer` put 10,000 new items into a SitecoreAI environment in 7.6 s, ready to use ([more](#it-moves-content-between-environments)).
+And for bulk copies between environments, `content transfer` put 10,000 new items into a SitecoreAI environment in 7.6 s, ready to use ([more](#first-class-support-for-syncing-and-moving-content-between-environments)).
 
 The speed comes from Tern itself: it is compiled to native code, so it starts in milliseconds, sends larger batches, reads in parallel and skips work when nothing has changed. Where the CM does the work, as when creating items, both tools go at the CM's pace.
-
-### It's a drop-in replacement
-
-- **Same files.** Tern reads the same `sitecore.json` and `*.module.json` and writes Item files that are byte for byte the same, so your repository doesn't change.
-- **Same commands and logins.** Commands, options, short flags and exit codes match the Sitecore CLI, and Tern uses the same `.sitecore/user.json` logins.
-- **Keep your scripts.** Install `Tern.Cli.Compat` in place of `Sitecore.CLI` and your `dotnet sitecore` scripts run on Tern unchanged.
-- **Proven side by side.** Pulls, pushes and resource packages are tested against the Sitecore CLI for identical results, and Tern has every one of its 83 commands ([testing](docs/testing.md)). Tern differs only where the Sitecore CLI fails, and each such case is listed and tested ([deviations](docs/deviations.md)).
 
 ### It's safer, and much more AI-friendly
 
@@ -45,7 +38,7 @@ Tern is designed for AI agents working on your Sitecore content alongside you. T
 - **An agent skill.** [skills/tern](skills/tern/SKILL.md) teaches an AI agent to read content, make a Plan, and apply only what was reviewed.
 - **No telemetry, ever.**
 
-### It moves content between environments
+### First class support for syncing and moving content between environments
 
 The Sitecore CLI can compare two environments, but it moves content only between a CM and files. Tern also copies content straight from one environment to another, by module, by a content and media pair, or by one item path, without rewriting `sitecore.json` or logging in again on every run:
 
@@ -77,41 +70,67 @@ tern content transfer -s prod -d uat -m site-a       # a bulk copy through the C
 - **Run scripts:** `script run` runs a Sitecore PowerShell Extensions script and captures its output.
 - **Everything else is built in.** Publishing, indexing, resource packages and the SitecoreAI `cloud` commands need no plugins to download.
 
+### It fixes the Sitecore CLI's rough edges
+
+Beyond the new commands, Tern smooths out the small things that trip you up day to day:
+
+- **Pushes don't stop on a duplicate item.** When the CM has an item at the same path as a serialized one but with a different ID, the Sitecore CLI stops with "Non-unique paths cannot be serialized" and you delete it by hand. Tern deletes it and creates the serialized item in the same push.
+- **Pull from a read-only environment.** An Endpoint without `allowWrite` can still be pulled to files; only writes to the CM are blocked.
+- **`ser diff` works with borrowed logins.** Endpoints that share a login through `ref`, such as those from `cloud environment connect`, compare without an authentication error.
+- **Hand-edited Item files still load.** A blank line an editor trimmed from a multi-line value no longer breaks the parse.
+- **Sensible defaults.** `cloud environment log download` saves to the current folder when no output path is given.
+
+Each difference from the Sitecore CLI is listed and tested ([deviations](docs/deviations.md)).
+
 ### It's lighter
 
 - **One file.** Tern is a single 12.5 MB native executable with no runtime to install. Sitecore CLI 7 is 12 MB, plus 31 MB of plugins in every project's `.sitecore/package-cache`, plus the .NET 10 runtime (77 MB).
 - **Less memory and CPU.** Most commands peak at 12–86 MB, against 30–155 MB. A 10,000-item push with nothing to change uses 0.23 s of CPU, against 1.8 s.
 
+### It's a drop-in replacement
+
+- **Same files.** Tern reads the same `sitecore.json` and `*.module.json` and writes Item files that are byte for byte the same, so your repository doesn't change.
+- **Same commands and logins.** Commands, options, short flags and exit codes match the Sitecore CLI, and Tern uses the same `.sitecore/user.json` logins.
+- **Switching is a find-and-replace.** Install `Tern.Cli` and replace `dotnet sitecore` with `tern` in your scripts; the arguments stay the same.
+- **Proven side by side.** Pulls, pushes and resource packages are tested against the Sitecore CLI for identical results, and Tern has every one of its 83 commands ([testing](docs/testing.md)). Tern differs only where the Sitecore CLI fails, and each such case is listed and tested ([deviations](docs/deviations.md)).
+
 ## Install
 
-```bash
-dotnet tool install --global Tern.Cli
-```
+### Quickly switch with an AI agent
 
-Or add it to a repo's tool manifest and run `dotnet tern`. Standalone binaries for Windows, Linux and macOS are attached to each release.
-
-To switch a repository over without touching its scripts, replace the Sitecore CLI with the compatibility package, which installs the same tool under the command name `sitecore`:
-
-```bash
-dotnet tool uninstall Sitecore.CLI
-dotnet tool install Tern.Cli.Compat
-```
-
-`sitecore --version` then says it is Tern, so nobody mistakes it for Sitecore's.
-
-### Switch with an AI agent
-
-Paste this into Claude Code, or any coding agent, from the root of your Sitecore repository:
+Paste this prompt into your agent:
 
 ```text
 Switch this repository from the Sitecore CLI to Tern. Follow the skill at
 https://github.com/markgibbons25/tern/blob/main/skills/switch-to-tern/SKILL.md:
 survey where the Sitecore CLI is installed and called, record a baseline,
-swap sitecore.cli for Tern.Cli.Compat, and prove nothing else changed.
+install Tern.Cli, replace dotnet sitecore with tern, and prove nothing else changed.
 Show me what you found before you change anything.
 ```
 
-The agent swaps the package, checks that `ser info` and `ser validate` match what the Sitecore CLI reported and that no other file changed, and tells you how to roll back. To keep the skill on hand, copy [skills/switch-to-tern](skills/switch-to-tern/SKILL.md) into your agent's skills folder (for Claude Code, `.claude/skills/`).
+### Install manually
+
+```bash
+dotnet tool install --global Tern.Cli
+```
+
+Standalone binaries for Windows, Linux and macOS are attached to each release.
+
+To switch a repository over, replace `dotnet sitecore` with `tern` in its scripts and pipelines, install Tern in CI the same way, and remove the Sitecore CLI from the tool manifest:
+
+```bash
+dotnet tool uninstall sitecore.cli
+```
+
+### Start without a sitecore.json
+
+If the repository has never used the Sitecore CLI, install Tern manually as above, then create the configuration from the repository root:
+
+```bash
+tern init
+```
+
+This writes a `sitecore.json` that picks up every `src/*/*.module.json`. Add a module to say which items to serialize (see Sitecore's [module file reference](https://doc.sitecore.com/sai/en/developers/sitecoreai/sitecore-content-serialization/set-up-content-serialization.html); Tern reads the same format). Then log in and pull, as below.
 
 ## Use
 
@@ -144,7 +163,7 @@ tern item query /sitecore/content/Site --template <template-id> --field "Title=*
 
 | Group | Commands |
 |---|---|
-| Login | `login`, `connect`, `env list/current/set-default/info`, `cloud login/logout` |
+| Login | `init`, `login`, `connect`, `env list/current/set-default/info`, `cloud login/logout` |
 | Serialization | `ser info`, `explain`, `validate`, `pull`, `push`, `diff`, `watch`, `package create/install`, `apply` |
 | Content between environments | `content sync`, `content diff`, `content transfer` ([docs/content.md](docs/content.md)) |
 | Items | `item get`, `item query`, `item set` |
@@ -153,7 +172,7 @@ tern item query /sitecore/content/Site --template <template-id> --field "Title=*
 | SitecoreAI | `cloud project/environment/deployment/editinghost/organization …` |
 | Beyond Management Services | `item set` and `authoring query` (Authoring API, no Administrator needed), `script run` (SPE remoting) |
 
-Run `tern <command> --help` for options. They match the Sitecore CLI's.
+Run `tern <command> --help` for options. They match the Sitecore CLI's, so Sitecore's [CLI command reference](https://doc.sitecore.com/sai/en/developers/sitecoreai/sitecore-command-line-interface/sitecore-cli-command-reference/index.html) applies too.
 
 ## Performance
 

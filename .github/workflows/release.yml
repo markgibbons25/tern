@@ -1,8 +1,8 @@
 name: Release
 
-# Packs Tern.Cli and Tern.Cli.Compat as RID-specific Native AOT tools and pushes them to nuget.org.
+# Packs Tern.Cli as RID-specific Native AOT tools and pushes them to nuget.org.
 # Native AOT can't cross-compile between operating systems, so each RID package is built on a
-# matching runner; the top-level packages only point at them, so they are packed once.
+# matching runner; the top-level package only points at them, so it is packed once.
 #
 # Pushing a v* tag publishes. A manual run packs and verifies, and publishes only when asked.
 # nuget.org accepts the push through Trusted Publishing: the job trades its GitHub OIDC token for
@@ -65,9 +65,6 @@ jobs:
       - name: Pack Tern.Cli (${{ matrix.rid }})
         run: dotnet pack src/Tern.Cli -c Release -r ${{ matrix.rid }} -o artifacts/nupkg
 
-      - name: Pack Tern.Cli.Compat (${{ matrix.rid }})
-        run: dotnet pack src/Tern.Cli.Compat -c Release -r ${{ matrix.rid }} -o artifacts/nupkg
-
       - uses: actions/upload-artifact@v7
         with:
           name: nupkg-${{ matrix.rid }}
@@ -84,10 +81,8 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Pack the top-level packages
-        run: |
-          dotnet pack src/Tern.Cli -c Release -o artifacts/nupkg
-          dotnet pack src/Tern.Cli.Compat -c Release -o artifacts/nupkg
+      - name: Pack the top-level package
+        run: dotnet pack src/Tern.Cli -c Release -o artifacts/nupkg
 
       - uses: actions/download-artifact@v8
         with:
@@ -95,23 +90,21 @@ jobs:
           path: artifacts/nupkg
           merge-multiple: true
 
-      # Both top-level packages and all six RID packages, at the version being released.
+      # The top-level package and all three RID packages, at the version being released.
       - name: Check the package set
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           missing=0
-          for id in Tern.Cli Tern.Cli.Compat; do
-            for suffix in "" .win-x64 .linux-x64 .osx-x64; do
-              f="artifacts/nupkg/$id$suffix.$VERSION.nupkg"
-              [ -f "$f" ] || { echo "::error::Missing $f"; missing=1; }
-            done
+          for suffix in "" .win-x64 .linux-x64 .osx-x64; do
+            f="artifacts/nupkg/Tern.Cli$suffix.$VERSION.nupkg"
+            [ -f "$f" ] || { echo "::error::Missing $f"; missing=1; }
           done
           ls -l artifacts/nupkg
           exit $missing
 
-      # Installs each tool from the local folder the way a user would from nuget.org, so the
+      # Installs the tool from the local folder the way a user would from nuget.org, so the
       # top-level package resolves its linux-x64 package, and runs it.
       - name: Install and run from the packages
         shell: bash
@@ -119,9 +112,7 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           dotnet tool install Tern.Cli --version "$VERSION" --tool-path tools/tern --add-source artifacts/nupkg
-          dotnet tool install Tern.Cli.Compat --version "$VERSION" --tool-path tools/compat --add-source artifacts/nupkg
           tools/tern/tern --version
-          tools/compat/sitecore --version
 
       - uses: actions/upload-artifact@v7
         with:
@@ -162,6 +153,6 @@ jobs:
           for f in nupkg/*.{win,linux,osx}-*.nupkg; do
             dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
           done
-          for f in nupkg/Tern.Cli.[0-9]*.nupkg nupkg/Tern.Cli.Compat.[0-9]*.nupkg; do
+          for f in nupkg/Tern.Cli.[0-9]*.nupkg; do
             dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
           done

@@ -1,13 +1,14 @@
 # Drop-in means byte-identical, proven against the Official CLI
 
-The tool is a Drop-in replacement across six layers:
+The tool is a Drop-in replacement across five layers:
 
 1. `sitecore.json` and Module files are read the same way.
 2. Pull writes byte-identical Item files.
 3. Commands, options, short flags and exit codes are the same.
 4. The Official CLI's login store is shared.
-5. An optional compatibility package installs the command name `sitecore`.
-6. Plugins are replaced by built-in commands.
+5. Plugins are replaced by built-in commands.
+
+A compatibility package that installed the command name `sitecore` was dropped on 2026-10-22. Running through `dotnet sitecore` added about 0.25 s to every call, and switching is a find-and-replace of `dotnet sitecore` with `tern` in a repository's scripts.
 
 Byte-identical output is the strictest of these and the most important: without it, the first Pull after switching rewrites every file in the repo. That is why the Item file writer is hand-built rather than a general YAML library.
 

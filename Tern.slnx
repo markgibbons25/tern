@@ -1,6 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Tern.Cli.Compat/Tern.Cli.Compat.csproj" />
     <Project Path="src/Tern.Cli/Tern.Cli.csproj" />
     <Project Path="src/Tern.Core/Tern.Core.csproj" />
     <Project Path="src/Tern.Remote/Tern.Remote.csproj" />

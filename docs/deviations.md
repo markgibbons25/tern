@@ -13,6 +13,7 @@ Tern produces the same result as the Official CLI wherever the Official CLI succ
 | D7 | `plugin add/remove/init` | Download NuGet plugins | Do nothing: the plugins' commands are built in ([ADR 0002](adr/0002-native-aot-and-executable-extensions.md)) | — |
 | D9 | `ser diff` between two Endpoints that borrow their login through `ref` (for example `cloud environment connect` ones) | Fails with "You are not authenticated (missing access token)" | Uses the referenced login, as every other command does | Run against a local container and a SitecoreAI CM, connected through `ref`, on 2026-10-20 |
 | D8 | `cloud environment log download` without `-o`/`--outputpath` | Fails: the output path is required | Saves the file in the current folder | `CloudCommands.SaveFile` |
+| D10 | Push where the CM has an item at a serialized item's path but with another ID | Stops with "Non-unique paths cannot be serialized"; the item has to be deleted by hand before pushing again | Deletes the CM's item, then creates the serialized one, when the Include allows deletes | `PlannerTests.Deletes_a_target_item_with_another_id_at_the_same_path_before_creating` |
 
 ## Where Tern matches a known Official CLI bug
 
