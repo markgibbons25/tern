@@ -68,7 +68,7 @@ public static class ApplyCommand
             var applied = await engine.ApplyAsync(plan, includes, checkPreconditions: true, token);
             foreach (var a in applied)
             {
-                output.Info($"[{a.Operation.Database}] {SyncRunner.Describe(a.Operation)}");
+                output.Info($"[{a.Operation.Database}] {SyncRunner.Describe(a.Operation)}", SyncRunner.ColorOf(a.Operation.Action));
             }
             output.Document("apply", w =>
             {

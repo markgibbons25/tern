@@ -10,7 +10,12 @@
     <PackageId>Tern.Cli</PackageId>
     <Description>Drop-in, Native AOT replacement for the Sitecore CLI.</Description>
     <ToolPackageRuntimeIdentifiers>win-x64;linux-x64;osx-x64</ToolPackageRuntimeIdentifiers>
+    <PackageTags>sitecore;sitecore-cli;serialization;scs;xm-cloud;sitecoreai;cli;dotnet-tool;content-sync</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="..\Tern.Core\Tern.Core.csproj" />

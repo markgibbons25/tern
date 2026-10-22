@@ -110,7 +110,7 @@ public static class WatchCommand
                         var planned = phase.ElapsedMilliseconds;
                         foreach (var op in result.Plan.Operations)
                         {
-                            output.Line($"[{op.Database}] {SyncRunner.Describe(op)}");
+                            output.Line($"[{op.Database}] {SyncRunner.Describe(op)}", SyncRunner.ColorOf(op.Action));
                         }
                         await engine.ApplyAsync(result.Plan, affected, checkPreconditions: false, stop.Token);
                         output.Debug($"Watch: {entries.Count} history entries; poll {polled} ms, plan {planned - polled} ms ({result.NodesEvaluated} items), apply {phase.ElapsedMilliseconds - planned} ms.");

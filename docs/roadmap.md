@@ -23,3 +23,7 @@ Versions stay at `0.1.x`, and finishing a milestone does not bump them. Moving p
 ## Platform compatibility
 
 We follow the CLI line Sitecore currently supports: Management Services 5.1.25 and later, on XM/XP 10.1–10.4 and SitecoreAI ([KB1000576](https://support.sitecore.com/kb?id=kb_article_view&sysparm_article=KB1000576)). XP 10.0 is out of scope. 10.5 is added once Sitecore lists it.
+
+## Known issues
+
+- **Ctrl+C asks "Terminate batch job (Y/N)?" on Windows.** The .NET SDK installs a native global tool behind a `tern.cmd` launcher, and `cmd.exe` asks this after Tern has already stopped, for example when ending `ser watch`. Either answer is fine. Running `tern.exe` directly, or the standalone binary, avoids it. The fix belongs to the SDK, which plans PowerShell launchers for global tools ([dotnet/sdk#49662](https://github.com/dotnet/sdk/issues/49662)); check again once it ships.

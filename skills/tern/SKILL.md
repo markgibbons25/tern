@@ -20,6 +20,29 @@ tern apply push.json                          # refuses if anything changed sinc
 - `--what-if` (`-w`) shows the changes without saving a Plan.
 - Exit code 3 means a saved Plan is out of date. Make a new one; never force it.
 - Push or apply only to the Endpoint the user named. `tern env list` shows Endpoints; a read-only one is marked.
+- `ser diff --push` writes without a Plan; use `ser diff --plan-out` and `tern apply` instead.
+
+## Commands that write without a Plan
+
+These change the target as soon as they run and can't save a Plan. Run one only when the user asked for that change, against the Endpoint they named. Show the preview first, then get the user's go-ahead before running it for real.
+
+| Command | What it writes | Preview |
+|---|---|---|
+| `content diff -s <src> -d <dst> --push` | Makes the target match the source, including deleting items the source lacks | The same command without `--push` |
+| `content sync -s <src> -d <dst>` | Pulls Item files from the source, then pushes them to the target, deletes included | `-w`; or `--skip-push`, review the files, then `--push-only` |
+| `content transfer -s <src> -d <dst>` | Copies whole trees through the Content Transfer API; never deletes, unless `--merge OverrideExistingTree` (which needs `--yes`: ask the user, never add it yourself) | `-w` |
+| `item set <path> --field "Title=New"` | Changes fields on one item version; `--reset` reverts fields to standard values | `tern item get <path>` for the current values |
+| `authoring query` | Whatever the GraphQL document does; a `mutation` writes | Read the document; run only queries without asking |
+| `script run` | Whatever the PowerShell script does, on the CM | Read the script and tell the user what it does |
+| `publish`, `publish item` | Publishes to the live site | None; confirm the path, languages and targets |
+| `index rebuild`, `index schema-populate`, `dbcleanup` | Rebuilds search indexes or cleans databases; `dbcleanup` can delete orphan items | `tern index list`, `tern index statistic`; confirm the indexes or tasks |
+| `ser push`, `ser pull` without `--plan-out` | The same as their Plans, unreviewed | Use the Plan workflow above |
+
+An Endpoint without `allowWrite` refuses all of these, and `authoring query` refuses only a mutation, so reads still work. A refusal means the user marked the Endpoint read-only: report it, and never change the setting.
+
+## Starting a new project
+
+With no `sitecore.json` yet, `tern init` creates one in the current folder that picks up every `src/*/*.module.json`. Ask which items the user wants serialized, write a Module file for them, then check it with `tern ser info`.
 
 ## Reading
 

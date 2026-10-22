@@ -20,7 +20,7 @@ public static class PublishCommands
         var cmd = new Command("publish", "Publish the master database") { environment, languages, path, republish, targets };
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {
-            var api = new PublishingApi(session.Management(session.Endpoint(parse.GetValue(environment))));
+            var api = new PublishingApi(session.Management(WritableEndpoint(session, parse.GetValue(environment))));
             var langs = Split(parse.GetValue(languages)!);
             var ts = Targets(parse.GetValue(targets)!);
             var jobs = await Task.WhenAll(ts.Select(t => RunAndWaitAsync(api, session.Output, () => api.PublishAsync(parse.GetValue(path), langs, [], parse.GetValue(republish), t, token), token)));
@@ -38,7 +38,7 @@ public static class PublishCommands
         var item = new Command("item", "Publish one item") { itemEnv, itemPath, sub, related, itemLanguages, itemRepublish, itemTargets };
         item.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {
-            var api = new PublishingApi(session.Management(session.Endpoint(parse.GetValue(itemEnv))));
+            var api = new PublishingApi(session.Management(WritableEndpoint(session, parse.GetValue(itemEnv))));
             var langs = Split(parse.GetValue(itemLanguages)!);
             var ts = Targets(parse.GetValue(itemTargets)!);
             var jobs = await Task.WhenAll(ts.Select(t => RunAndWaitAsync(api, session.Output, () => api.PublishItemAsync(parse.GetValue(itemPath)!, langs, parse.GetValue(itemRepublish), t, parse.GetValue(related), parse.GetValue(sub), token), token)));
@@ -153,7 +153,7 @@ public static class PublishCommands
             {
                 selected = tasks.Select(t => t.Task).ToList();
             }
-            var api = new DatabaseApi(session.Management(session.Endpoint(parse.GetValue(environment))));
+            var api = new DatabaseApi(session.Management(WritableEndpoint(session, parse.GetValue(environment), "clean its databases")));
             var jobs = await api.CleanupAsync(Split(parse.GetValue(db)!), selected, token);
             var finished = await PollAsync(session.Output, jobs, ids => api.StatusAsync(ids, token), token);
             Report(session.Output, "dbcleanup", finished);
@@ -169,13 +169,21 @@ public static class PublishCommands
         var cmd = new Command(name, description) { environment, indexes };
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {
-            var api = new IndexingApi(session.Management(session.Endpoint(parse.GetValue(environment))));
+            var api = new IndexingApi(session.Management(WritableEndpoint(session, parse.GetValue(environment), "change its indexes")));
             var jobs = await start(api, Split(parse.GetValue(indexes)!), token);
             var finished = await PollAsync(session.Output, jobs, ids => api.StatusAsync(ids, token), token);
             Report(session.Output, "index " + name, finished);
             return finished.Any(j => j.IsFailed) ? ExitCodes.Failure : ExitCodes.Success;
         }, ct));
         return cmd;
+    }
+
+    /// <summary>Publishing, rebuilding indexes and cleaning databases change the CM, so they need an Endpoint that allows writes.</summary>
+    private static Tern.Remote.Login.Endpoint WritableEndpoint(Session session, string? name, string action = "publish on it")
+    {
+        var endpoint = session.Endpoint(name);
+        return endpoint.AllowWrite ? endpoint
+            : throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to {action}.");
     }
 
     /// <summary>Starts a publish and polls it every 750 ms until it finishes, as the Official CLI does.</summary>

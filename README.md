@@ -1,13 +1,13 @@
 # Tern
 
+[![NuGet](https://img.shields.io/nuget/v/Tern.Cli)](https://www.nuget.org/packages/Tern.Cli) [![NuGet downloads](https://img.shields.io/nuget/dt/Tern.Cli)](https://www.nuget.org/packages/Tern.Cli)
+
 **The Sitecore Community CLI: fast, safe, and built for scripts and AI agents.** Tern is an open-source, native command-line tool for Sitecore, made by the Sitecore Community. It reads your existing `sitecore.json`, Module files and logins, writes byte-identical Item files, and takes the same commands and options. Many commands run ten times faster or more.
 
 ```bash
 dotnet tool install --global Tern.Cli
 tern ser pull          # the command you already know, as tern
 ```
-
-> Status: `0.1.x`, pre-release.
 
 ## Why Tern
 

@@ -142,7 +142,7 @@ public static class SyncRunner
             output.Info(string.Empty);
             foreach (var op in ops)
             {
-                output.Info($"[{db}] {Describe(op)}");
+                output.Info($"[{db}] {Describe(op)}", ColorOf(op.Action));
             }
             if (ops.Count > 0)
             {
@@ -160,5 +160,14 @@ public static class SyncRunner
         PlanAction.Move => $"[M] {op.TargetPath} to {op.Path} ({op.Id})",
         PlanAction.Rename => $"[R] {op.Path} ({op.Id}) from '{ItemPath.Parse(op.TargetPath!).Name}' to '{ItemPath.Parse(op.Path).Name}'",
         _ => op.ToString(),
+    };
+
+    /// <summary>The ANSI colour of an operation's line: green adds, yellow updates, red deletes, cyan moves and renames.</summary>
+    internal static string ColorOf(PlanAction action) => action switch
+    {
+        PlanAction.Create => "32",
+        PlanAction.Update => "33",
+        PlanAction.Delete => "31",
+        _ => "36",
     };
 }

@@ -15,6 +15,12 @@ public sealed class Output(bool json, bool verbose, bool trace)
     public TextWriter Out { get; init; } = Console.Out;
     public TextWriter Err { get; init; } = Console.Error;
 
+    /// <summary>
+    /// Whether to colour text: by default, only when the stream is a terminal and <c>NO_COLOR</c>
+    /// is unset. Tests set it.
+    /// </summary>
+    public bool? Colors { get; init; }
+
     /// <summary>A result line for humans. Suppressed under --json.</summary>
     public void Line(string text = "")
     {
@@ -24,7 +30,19 @@ public sealed class Output(bool json, bool verbose, bool trace)
         }
     }
 
+    /// <summary>A result line for humans in an ANSI colour (for example "32", green). Suppressed under --json.</summary>
+    public void Line(string text, string color)
+    {
+        if (!Json)
+        {
+            Out.WriteLine(Color(color, text, Console.IsOutputRedirected));
+        }
+    }
+
     public void Info(string text) => Err.WriteLine(text);
+
+    /// <summary>A progress line in an ANSI colour.</summary>
+    public void Info(string text, string color) => Err.WriteLine(Color(color, text));
 
     public void Warn(string text) => Err.WriteLine(Color("33", text));
 
@@ -92,9 +110,9 @@ public sealed class Output(bool json, bool verbose, bool trace)
     /// <summary>Where <see cref="RawJson"/> writes instead of stdout; tests set it.</summary>
     public Stream? JsonStream { get; init; }
 
-    private static bool UseColor => !Console.IsErrorRedirected && Environment.GetEnvironmentVariable("NO_COLOR") is null;
-
-    private static string Color(string code, string text) => UseColor ? $"\u001b[{code}m{text}\u001b[0m" : text;
+    /// <summary>Colours text bound for stderr, or for stdout when <paramref name="redirected"/> says whether it is redirected.</summary>
+    private string Color(string code, string text, bool? redirected = null) =>
+        (Colors ?? (!(redirected ?? Console.IsErrorRedirected) && Environment.GetEnvironmentVariable("NO_COLOR") is null)) ? $"\u001b[{code}m{text}\u001b[0m" : text;
 }
 
 /// <summary>A failure the user can act on; its message is shown without a stack trace.</summary>

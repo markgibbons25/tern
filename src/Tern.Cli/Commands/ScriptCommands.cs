@@ -28,6 +28,11 @@ public static class ScriptCommands
             var text = parse.GetValue(file) is { } path ? await File.ReadAllTextAsync(path, token)
                 : parse.GetValue(inline) ?? throw new CliException("Pass --file or --script.");
             var endpoint = session.Endpoint(parse.GetValue(environment));
+            // A script can do anything, so it runs only where writes are allowed.
+            if (!endpoint.AllowWrite)
+            {
+                throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to run scripts on it.");
+            }
             var userName = parse.GetValue(user) ?? Environment.GetEnvironmentVariable("TERN_SPE_USER") ?? "admin";
             SpeCredentials credentials =
                 (parse.GetValue(secret) ?? Environment.GetEnvironmentVariable("TERN_SPE_SECRET")) is { } s ? new SpeCredentials.SharedSecret(userName, s)
@@ -65,6 +70,10 @@ public static class ScriptCommands
             var document = parse.GetValue(file) is { } path ? await File.ReadAllTextAsync(path, token)
                 : parse.GetValue(query) ?? throw new CliException("Pass --query or --file.");
             var endpoint = session.Endpoint(parse.GetValue(environment));
+            if (!endpoint.AllowWrite && GraphQlDocument.HasMutation(document))
+            {
+                throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to send mutations to it.");
+            }
             using var response = await new AuthoringClient(Session.Http, endpoint.Host!, session.Tokens(endpoint)).QueryAsync(document, parse.GetValue(variables), token);
             using var stdout = Console.OpenStandardOutput();
             using (var w = new Utf8JsonWriter(stdout, new JsonWriterOptions { Indented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))

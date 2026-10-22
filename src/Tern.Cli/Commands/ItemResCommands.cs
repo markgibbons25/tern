@@ -120,7 +120,7 @@ public static class ItemResCommands
                 session.Output.Line($"Cleanup of resource items is finished for '{r.Database}' database. Removed: {r.Count} item(s).");
                 foreach (var item in r.Items)
                 {
-                    session.Output.Line($"[{r.Database}] [D] {item}");
+                    session.Output.Line($"[{r.Database}] [D] {item}", SyncRunner.ColorOf(PlanAction.Delete));
                 }
             }
             session.Output.Document("itemres cleanup", w =>
