@@ -9,11 +9,12 @@ Tern produces the same result as the Official CLI wherever the Official CLI succ
 | D3 | An access token about to expire | Sends it, waits for a 401/403/302, then refreshes | Refreshes it before use, two minutes ahead of expiry | `TokenProvider` |
 | D4 | A token refresh | Re-saves `sitecore.json` as well as `user.json`, which leaves a git diff | Writes only `user.json` | `LoginStore.Save` |
 | D5 | Version handshake with Management Services | Claims its own version; rejected by a server with a higher major version | Opts out of the comparison and detects features from the schema ([ADR 0006](adr/0006-feature-detection-not-version-claims.md)) | `ManagementClient` |
-| D6 | Credentials for CI and agents | None from the environment | `TERN_<ENDPOINT>_CLIENT_ID`/`_CLIENT_SECRET` (or `TERN_CLIENT_ID`/`TERN_CLIENT_SECRET`), never written to disk | `EnvironmentCredentials` |
+| D6 | Credentials for CI and agents | None from the environment | `TERN_<ENDPOINT>_CLIENT_ID`/`_CLIENT_SECRET` (or `TERN_CLIENT_ID`/`TERN_CLIENT_SECRET`), from the environment or the `TERN_*` lines of a `.env` beside `sitecore.json`, never written to disk | `EnvironmentCredentials` |
 | D7 | `plugin add/remove/init` | Download NuGet plugins | Do nothing: the plugins' commands are built in ([ADR 0002](adr/0002-native-aot-and-executable-extensions.md)) | — |
 | D9 | `ser diff` between two Endpoints that borrow their login through `ref` (for example `cloud environment connect` ones) | Fails with "You are not authenticated (missing access token)" | Uses the referenced login, as every other command does | Run against a local container and a SitecoreAI CM, connected through `ref`, on 2026-10-20 |
 | D8 | `cloud environment log download` without `-o`/`--outputpath` | Fails: the output path is required | Saves the file in the current folder | `CloudCommands.SaveFile` |
 | D10 | Push where the CM has an item at a serialized item's path but with another ID | Stops with "Non-unique paths cannot be serialized"; the item has to be deleted by hand before pushing again | Deletes the CM's item, then creates the serialized one, when the Include allows deletes | `PlannerTests.Deletes_a_target_item_with_another_id_at_the_same_path_before_creating` |
+| D11 | Endpoints a team shares through source control | Only `.sitecore/user.json`, which holds tokens and secrets, so each person adds every endpoint | Also reads endpoints from the committed `tern.json`, layered under `user.json`; it holds no secret, and its `allowWrite: false` can't be overridden locally ([ADR 0013](adr/0013-shared-endpoints-in-tern-json.md)) | `SharedEndpointTests` |
 
 ## Where Tern matches a known Official CLI bug
 

@@ -136,6 +136,59 @@ public sealed record EnvironmentCredentials(string ClientId, string ClientSecret
         var secret = Get("CLIENT_SECRET");
         return id is null || secret is null ? null : new EnvironmentCredentials(id, secret, Get("AUTHORITY"), Get("AUDIENCE"));
     }
+
+    /// <summary>
+    /// Reads environment variables, falling back to the <c>TERN_*</c> lines of a <c>.env</c> file in
+    /// <paramref name="directory"/>, so a content-sync folder's <c>.env</c> works without loading it first.
+    /// A variable that is set always wins over the file.
+    /// </summary>
+    public static Func<string, string?> Reader(string? directory)
+    {
+        var file = directory is null ? null : Path.Combine(directory, ".env");
+        var values = file is not null && File.Exists(file) ? DotEnv.Parse(File.ReadAllLines(file)) : [];
+        return name => Environment.GetEnvironmentVariable(name) ?? values.GetValueOrDefault(name);
+    }
+}
+
+/// <summary>The <c>TERN_*</c> variables of a <c>.env</c> file. Other lines are ignored, since they belong to other tools.</summary>
+public static class DotEnv
+{
+    public static Dictionary<string, string> Parse(IEnumerable<string> lines)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            if (line.StartsWith("export ", StringComparison.Ordinal))
+            {
+                line = line["export ".Length..].TrimStart();
+            }
+            var eq = line.IndexOf('=', StringComparison.Ordinal);
+            if (line.StartsWith('#') || eq <= 0)
+            {
+                continue;
+            }
+            var name = line[..eq].Trim();
+            if (!name.StartsWith("TERN_", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            var value = line[(eq + 1)..].Trim();
+            if (value.Length >= 2 && (value[0] == '"' || value[0] == '\'') && value[^1] == value[0])
+            {
+                value = value[1..^1];
+            }
+            else if (value.IndexOf(" #", StringComparison.Ordinal) is var comment and >= 0)
+            {
+                value = value[..comment].TrimEnd();
+            }
+            if (value.Length > 0)
+            {
+                values[name] = value;
+            }
+        }
+        return values;
+    }
 }
 
 public static class Defaults

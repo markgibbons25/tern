@@ -23,7 +23,7 @@ public sealed class CloudContext
     public static CloudContext Open(Session session)
     {
         var endpoint = CloudEndpoints.Find(session.Store);
-        var environment = EnvironmentCredentials.For(CloudEndpoints.Name);
+        var environment = EnvironmentCredentials.For(CloudEndpoints.Name, session.EnvironmentVariables);
         TokenProvider tokens;
         if (endpoint is not null && (endpoint.AccessToken is not null || environment is not null))
         {

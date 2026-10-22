@@ -31,7 +31,7 @@ public static class ScriptCommands
             // A script can do anything, so it runs only where writes are allowed.
             if (!endpoint.AllowWrite)
             {
-                throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to run scripts on it.");
+                throw new CliException(ReadOnlyEndpoint.Message(endpoint, "run scripts on it"));
             }
             var userName = parse.GetValue(user) ?? Environment.GetEnvironmentVariable("TERN_SPE_USER") ?? "admin";
             SpeCredentials credentials =
@@ -72,7 +72,7 @@ public static class ScriptCommands
             var endpoint = session.Endpoint(parse.GetValue(environment));
             if (!endpoint.AllowWrite && GraphQlDocument.HasMutation(document))
             {
-                throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to send mutations to it.");
+                throw new CliException(ReadOnlyEndpoint.Message(endpoint, "send mutations to it"));
             }
             using var response = await new AuthoringClient(Session.Http, endpoint.Host!, session.Tokens(endpoint)).QueryAsync(document, parse.GetValue(variables), token);
             using var stdout = Console.OpenStandardOutput();
@@ -112,7 +112,7 @@ public static class ScriptCommands
             var endpoint = session.Endpoint(parse.GetValue(environment));
             if (!endpoint.AllowWrite)
             {
-                throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes.");
+                throw new CliException(ReadOnlyEndpoint.Message(endpoint, null));
             }
             using var result = await new AuthoringClient(Session.Http, endpoint.Host!, session.Tokens(endpoint))
                 .UpdateItemAsync(parse.GetValue(target)!, parse.GetValue(database)!, parse.GetValue(language), parse.GetValue(version), changes, token);

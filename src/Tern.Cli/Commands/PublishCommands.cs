@@ -183,7 +183,7 @@ public static class PublishCommands
     {
         var endpoint = session.Endpoint(name);
         return endpoint.AllowWrite ? endpoint
-            : throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to {action}.");
+            : throw new CliException(ReadOnlyEndpoint.Message(endpoint, action));
     }
 
     /// <summary>Starts a publish and polls it every 750 ms until it finishes, as the Official CLI does.</summary>

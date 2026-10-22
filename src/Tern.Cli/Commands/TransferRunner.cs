@@ -37,7 +37,7 @@ public static class TransferRunner
         }
         if (!target.AllowWrite && !request.WhatIf)
         {
-            throw new CliException($"Endpoint '{target.Name}' does not allow writes. Log in again with --allow-write true to transfer to it.");
+            throw new CliException(ReadOnlyEndpoint.Message(target, "transfer to it"));
         }
         if (options.Merge == MergeStrategy.OverrideExistingTree && !options.Yes && !request.WhatIf)
         {

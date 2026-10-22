@@ -11,6 +11,23 @@ Tern's own settings live outside `sitecore.json` ([ADR 0011](adr/0011-tern-setti
 | `fileIndex` | `TERN_FILE_INDEX` | `true` | Keep an index of Item files so unchanged files aren't read again |
 | `useKeychain` | `TERN_USE_KEYCHAIN` | `false` | Keep tokens in the OS keychain |
 
+## Shared endpoints
+
+The project's `tern.json` can also list the team's endpoints, so nobody has to add them by hand ([ADR 0013](adr/0013-shared-endpoints-in-tern-json.md)):
+
+```json
+{
+  "endpoints": {
+    "dev":  { "host": "https://<dev-cm>",  "allowWrite": true,  "useClientCredentials": true },
+    "prod": { "host": "https://<prod-cm>", "allowWrite": false, "useClientCredentials": true }
+  }
+}
+```
+
+Each endpoint takes `host` (required), `authority`, `audience`, `allowWrite` and `useClientCredentials`, and nothing else: a client ID, secret or token is refused, since the file is committed. Authority and audience default to SitecoreAI's. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, as variables or in a `.env` beside `sitecore.json`, or from `tern login`.
+
+`tern.json` wins over `user.json` for where an endpoint is, `user.json` keeps the tokens, and `allowWrite` is the stricter of the two. `tern env list` marks these endpoints `(tern.json)`.
+
 ## Why the defaults are what they are
 
 Measured on 2026-10-20 against a local SitecoreAI container and a SitecoreAI CM used only for testing, with the scenarios of the benchmark suite. In both places the CM, not the client, sets the pace, so most settings change little:

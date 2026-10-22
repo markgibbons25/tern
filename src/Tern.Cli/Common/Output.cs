@@ -44,6 +44,46 @@ public sealed class Output(bool json, bool verbose, bool trace)
     /// <summary>A progress line in an ANSI colour.</summary>
     public void Info(string text, string color) => Err.WriteLine(Color(color, text));
 
+    /// <summary>
+    /// A progress line that rewrites itself in place on a terminal. When stderr is redirected, as in
+    /// CI or a log file, it becomes a plain line at most every 15 seconds, so a long step still shows
+    /// it is alive. Safe to call from several threads.
+    /// </summary>
+    public void Progress(string text)
+    {
+        lock (_progressLock)
+        {
+            if (Console.IsErrorRedirected)
+            {
+                if (Environment.TickCount64 - _lastLoggedProgress >= 15_000)
+                {
+                    _lastLoggedProgress = Environment.TickCount64;
+                    Err.WriteLine(text);
+                }
+                return;
+            }
+            Err.Write($"\r{text}\u001b[K");
+            _progressShown = true;
+        }
+    }
+
+    /// <summary>Clears the progress line, if one is showing, before the next line is written.</summary>
+    public void EndProgress()
+    {
+        lock (_progressLock)
+        {
+            if (_progressShown)
+            {
+                Err.Write("\r\u001b[K");
+                _progressShown = false;
+            }
+        }
+    }
+
+    private readonly Lock _progressLock = new();
+    private bool _progressShown;
+    private long _lastLoggedProgress = Environment.TickCount64;
+
     public void Warn(string text) => Err.WriteLine(Color("33", text));
 
     public void Error(string text) => Err.WriteLine(Color("31", text));

@@ -46,7 +46,7 @@ public static class ApplyCommand
                         var endpoint = session.Endpoint(parse.GetValue(environment));
                         if (!endpoint.AllowWrite)
                         {
-                            throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes.");
+                            throw new CliException(ReadOnlyEndpoint.Message(endpoint, null));
                         }
                         var api = session.Serialization(endpoint);
                         engine = new SyncEngine(new FileItemTree(IncludeField, index: session.FileIndex(excluded)), new CmItemTree(api, [.. excluded]), new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Push);
@@ -58,7 +58,7 @@ public static class ApplyCommand
                         var d = session.Endpoint(parse.GetValue(destination) ?? throw new CliException("--destination is required to apply a diff Plan."));
                         if (!d.AllowWrite)
                         {
-                            throw new CliException($"Endpoint '{d.Name}' does not allow writes.");
+                            throw new CliException(ReadOnlyEndpoint.Message(d, null));
                         }
                         var targetApi = session.Serialization(d);
                         engine = new SyncEngine(new CmItemTree(session.Serialization(s), [.. excluded]), new CmItemTree(targetApi, [.. excluded]), new CmApplier(targetApi, [.. excluded], session.Settings.WriteBatchSize, output.Info), PlanDirection.Copy);

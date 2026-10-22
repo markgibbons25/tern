@@ -80,7 +80,11 @@ public static class LoginCommands
             TokenResponse result;
             if (useClientCredentials)
             {
-                result = await oidc.ClientCredentialsAsync(endpoint.Authority, endpoint.ClientId ?? throw new CliException("--client-id is required for client credentials."), endpoint.ClientSecret ?? throw new CliException("--client-secret is required for client credentials."), endpoint.Audience, endpoint.Insecure, token);
+                // Without --client-id/--client-secret, take them from TERN_* variables (or the project's .env); they are not stored.
+                var fromEnvironment = endpoint.ClientId is null || endpoint.ClientSecret is null ? EnvironmentCredentials.For(endpoint.Name, session.EnvironmentVariables) : null;
+                var id = endpoint.ClientId ?? fromEnvironment?.ClientId ?? throw new CliException("--client-id is required for client credentials, or set TERN_CLIENT_ID and TERN_CLIENT_SECRET.");
+                var secretValue = endpoint.ClientSecret ?? fromEnvironment?.ClientSecret ?? throw new CliException("--client-secret is required for client credentials, or set TERN_CLIENT_ID and TERN_CLIENT_SECRET.");
+                result = await oidc.ClientCredentialsAsync(endpoint.Authority, id, secretValue, endpoint.Audience, endpoint.Insecure, token);
             }
             else
             {
@@ -182,6 +186,7 @@ public static class LoginCommands
                     w.WriteString("ref", e.Ref);
                     w.WriteBoolean("allowWrite", e.AllowWrite);
                     w.WriteString("authority", e.Authority);
+                    w.WriteBoolean("shared", e.Shared is not null);
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();
@@ -189,7 +194,7 @@ public static class LoginCommands
             foreach (var e in all)
             {
                 var marker = e.Name.Equals(session.Store.DefaultEndpointName, StringComparison.OrdinalIgnoreCase) ? "* " : "  ";
-                session.Output.Line($"{marker}{e.Name}: {e.Host}{(e.Ref is { } r ? $" (login from {r})" : string.Empty)}{(e.AllowWrite ? string.Empty : " [read-only]")}");
+                session.Output.Line($"{marker}{e.Name}: {e.Host}{(e.Ref is { } r ? $" (login from {r})" : string.Empty)}{(e.AllowWrite ? string.Empty : " [read-only]")}{(e.Shared is null ? string.Empty : " (tern.json)")}");
             }
             return Task.FromResult(ExitCodes.Success);
         }, ct));

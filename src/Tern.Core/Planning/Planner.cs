@@ -60,7 +60,9 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         List<ItemMetadata> roots;
         if (include.Scope == TreeScope.DescendantsOnly)
         {
+            // The root's children start the walk, so no parent in it checks them as siblings.
             roots = sourceItems.Where(m => m.ItemPath.Parent.Equals(include.Path)).ToList();
+            EnsureUniqueNames(roots);
         }
         else
         {

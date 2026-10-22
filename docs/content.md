@@ -9,7 +9,9 @@ tern login -n prod --authority https://auth.sitecorecloud.io --cm https://<prod-
 tern login -n uat  --authority https://auth.sitecorecloud.io --cm https://<uat-cm>  --client-credentials true --client-id <id> --client-secret <secret> --allow-write true
 ```
 
-To keep the secret off disk, leave out `--client-id` and `--client-secret` and set `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_PROD_CLIENT_ID` and so on) instead. `--allow-write false` is what keeps an environment such as prod from ever being pushed to.
+To keep the secret off disk, leave out `--client-id` and `--client-secret` and set `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_PROD_CLIENT_ID` and so on) instead, as environment variables or in a `.env` beside `sitecore.json`. Tern reads only the `TERN_*` lines of that file, and a variable that is set wins. `--allow-write false` is what keeps an environment such as prod from ever being pushed to.
+
+For a team, list the environments in a committed `tern.json` beside `sitecore.json` instead, so nobody logs in to each one: hosts and `allowWrite` go in `tern.json`, the client credentials in a gitignored `.env`, and a committed `"allowWrite": false` on prod can't be overridden locally ([shared endpoints](settings.md#shared-endpoints)).
 
 ## What to compare or copy
 
@@ -119,7 +121,7 @@ What the numbers mean:
 | What such a script does | Tern |
 |---|---|
 | Keeps a table of environments, with each CM's host and whether it may be written to | Endpoints in `.sitecore/user.json` (`tern login -n <name>`) and their `allowWrite` |
-| Logs in with client credentials on every run, read from parameters or a `.env` file | `tern login` once, or `TERN_CLIENT_ID` / `TERN_CLIENT_SECRET` |
+| Logs in with client credentials on every run, read from parameters or a `.env` file | `tern login` once, or `TERN_CLIENT_ID` / `TERN_CLIENT_SECRET`, which can stay in the same `.env` |
 | Rewrites the `modules` list in `sitecore.json` to pick a module, then restores it | `-m <module>` |
 | Writes a temporary module for one item path | `-p <path>` with `--scope` |
 | Drops the media modules | `--skip-media` |

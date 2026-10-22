@@ -25,7 +25,7 @@ public static class PushRunner
         var endpoint = session.Endpoint(request.Environment);
         if (!endpoint.AllowWrite && !request.WhatIf && request.PlanOut is null)
         {
-            throw new CliException($"Endpoint '{endpoint.Name}' does not allow writes. Log in again with --allow-write true to push to it.");
+            throw new CliException(ReadOnlyEndpoint.Message(endpoint, "push to it"));
         }
         var includes = modules.SelectMany(m => m.Includes).ToList();
         var excluded = session.ExcludedFields(modules).ToHashSet();
@@ -74,7 +74,7 @@ public static class PushRunner
         var targetEndpoint = session.Endpoint(request.Destination);
         if (request.Push && !targetEndpoint.AllowWrite)
         {
-            throw new CliException($"Endpoint '{targetEndpoint.Name}' does not allow writes. Log in again with --allow-write true to push to it.");
+            throw new CliException(ReadOnlyEndpoint.Message(targetEndpoint, "push to it"));
         }
 
         List<Include> includes;
@@ -112,13 +112,56 @@ public static class PushRunner
         var targetApi = session.Serialization(targetEndpoint);
         var source = new CmItemTree(sourceApi, excluded, sourceEndpoint.Name);
         var target = new CmItemTree(targetApi, excluded, targetEndpoint.Name);
-        await Task.WhenAll(source.PrefetchAsync(includes, ct), target.PrefetchAsync(includes, ct));
+        await ReadBothAsync(output, includes, (source, sourceEndpoint.Name), (target, targetEndpoint.Name), ct);
 
         var applier = new CmApplier(targetApi, excluded, session.Settings.WriteBatchSize, output.Info);
         var engine = new SyncEngine(source, target, applier, PlanDirection.Copy);
+        output.Info("Comparing items...");
+        var compare = Stopwatch.StartNew();
         var result = await engine.PlanAsync(includes, force: true, ct);
+        if (compare.Elapsed >= TimeSpan.FromSeconds(1))
+        {
+            output.Info($"Compared in {compare.Elapsed.TotalSeconds:0.0} s.");
+        }
         SyncRunner.PrintPlan(output, result, targetEndpoint.Name);
         var syncRequest = new SyncRequest(null, request.Include, request.Exclude, WhatIf: !request.Push, false, true, request.PlanOut, false, []);
         return await SyncRunner.FinishAsync(session, syncRequest, engine, result, includes, "ser diff", watch, ct);
+    }
+
+    /// <summary>
+    /// Reads every Include from both CMs at once, showing how far each side has got, then how many
+    /// items each returned. A large scope can take minutes, and without this nothing would show.
+    /// </summary>
+    private static async Task ReadBothAsync(Output output, List<Include> includes, (CmItemTree Tree, string Name) source, (CmItemTree Tree, string Name) target, CancellationToken ct)
+    {
+        var watch = Stopwatch.StartNew();
+        int sourceDone = 0, targetDone = 0, sourceItems = 0, targetItems = 0;
+        void Show() => output.Progress($"Reading: {source.Name} {Volatile.Read(ref sourceDone)}/{includes.Count} includes ({Volatile.Read(ref sourceItems):N0} items), {target.Name} {Volatile.Read(ref targetDone)}/{includes.Count} ({Volatile.Read(ref targetItems):N0} items), {watch.Elapsed.TotalSeconds:0} s");
+        source.Tree.Loaded = (_, count) =>
+        {
+            Interlocked.Add(ref sourceItems, count);
+            Interlocked.Increment(ref sourceDone);
+            Show();
+        };
+        target.Tree.Loaded = (_, count) =>
+        {
+            Interlocked.Add(ref targetItems, count);
+            Interlocked.Increment(ref targetDone);
+            Show();
+        };
+        output.Info($"Reading {includes.Count} include{(includes.Count == 1 ? string.Empty : "s")} from {source.Name} and {target.Name}...");
+        using var timer = new Timer(_ => Show(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        try
+        {
+            await Task.WhenAll(source.Tree.PrefetchAsync(includes, ct), target.Tree.PrefetchAsync(includes, ct));
+        }
+        finally
+        {
+            await timer.DisposeAsync();
+            source.Tree.Loaded = null;
+            target.Tree.Loaded = null;
+            output.EndProgress();
+        }
+        output.Info($"Read {sourceItems:N0} items from {source.Name} and {targetItems:N0} from {target.Name} in {watch.Elapsed.TotalSeconds:0.0} s.");
     }
 }

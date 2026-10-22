@@ -91,7 +91,7 @@ public static class ContentCommands
         }
         if (target is not null && !target.AllowWrite && !request.WhatIf)
         {
-            throw new CliException($"Endpoint '{target.Name}' does not allow writes. Log in again with --allow-write true to push to it.");
+            throw new CliException(ReadOnlyEndpoint.Message(target, "push to it"));
         }
 
         var output = session.Output;

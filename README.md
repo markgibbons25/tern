@@ -62,7 +62,8 @@ tern content transfer -s prod -d uat -m site-a       # a bulk copy through the C
 ### It's built for CI and scripts
 
 - **`--json` on every command.** stdout carries exactly one JSON document with a `schemaVersion`; progress and logs go to stderr.
-- **Credentials from the environment.** `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_<ENDPOINT>_CLIENT_ID` and so on) log a pipeline in without writing a secret to disk.
+- **Credentials from the environment.** `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_<ENDPOINT>_CLIENT_ID` and so on) log a pipeline in without writing a secret to disk. Tern also reads them from a `.env` beside `sitecore.json`; a variable that is set wins.
+- **Shared endpoints.** A committed `tern.json` can list the team's environments, with no secrets, so nobody adds them by hand; a prod marked read-only there stays read-only ([settings](docs/settings.md#shared-endpoints)).
 - **Logins that behave.** Tern refreshes a token before it expires instead of after a failed call, and a refresh writes only `user.json`, never `sitecore.json`, so it leaves no git diff.
 
 ### It does more than the Sitecore CLI
@@ -124,6 +125,8 @@ To switch a repository over, replace `dotnet sitecore` with `tern` in its script
 dotnet tool uninstall sitecore.cli
 ```
 
+If SitecoreAI (XM Cloud) Deploy builds the repository (it has an `xmcloud.build.json`), keep the Sitecore CLI in the tool manifest, the `plugins` in `sitecore.json` and Sitecore's feed in `nuget.config`. Deploy runs `dotnet tool restore` and uses that Sitecore CLI to turn your Item files into Items as Resources, so without it the next deployment fails. Tern takes over your scripts and local work; Deploy keeps the Sitecore CLI.
+
 ### Update
 
 ```bash
@@ -162,6 +165,23 @@ tern apply push.json                     # exactly what was reviewed, or nothing
 ```
 
 A Plan records the Signature it expects each target item to have. If anyone changes one of those items before you apply, Tern stops rather than overwriting their work.
+
+### Configure Tern
+
+Tern's own settings go in a `tern.json` next to `sitecore.json`, which the Sitecore CLI ignores. Commit it to share the team's endpoints, with no secrets, and Tern's tuning settings:
+
+```json
+{
+  "endpoints": {
+    "local": { "host": "https://xmcloudcm.localhost", "allowWrite": true },
+    "dev":   { "host": "https://<dev-cm>",  "allowWrite": true,  "useClientCredentials": true },
+    "prod":  { "host": "https://<prod-cm>", "allowWrite": false, "useClientCredentials": true }
+  },
+  "parallelRequests": 8
+}
+```
+
+An endpoint marked read-only there stays read-only, whatever a local login says. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, from a `.env` beside `sitecore.json`, or from `tern login`. Settings can also go in `~/.config/tern/settings.json` or `TERN_*` environment variables, which win. See [settings](docs/settings.md) for every option.
 
 ### Read content without serializing it
 

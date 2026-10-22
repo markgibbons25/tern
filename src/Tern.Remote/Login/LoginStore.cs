@@ -13,6 +13,7 @@ namespace Tern.Remote.Login;
 public sealed class LoginStore
 {
     private readonly JsonObject _root;
+    private readonly Dictionary<string, SharedEndpoint> _shared = new(StringComparer.OrdinalIgnoreCase);
 
     private LoginStore(string path, JsonObject root)
     {
@@ -60,7 +61,34 @@ public sealed class LoginStore
         set => _root["defaultEndpoint"] = value;
     }
 
-    public IEnumerable<Endpoint> All => Endpoints.Select(p => new Endpoint(this, p.Key, (JsonObject)p.Value!));
+    public IEnumerable<Endpoint> All =>
+        Endpoints.Select(p => new Endpoint(this, p.Key, (JsonObject)p.Value!))
+            .Concat(_shared.Values.Where(s => !Stored(s.Name)).Select(s => new Endpoint(this, s.Name, new JsonObject())));
+
+    /// <summary>
+    /// Layers endpoint definitions from the project's <c>tern.json</c> under this store (ADR 0013).
+    /// They are never saved: <c>user.json</c> gets an entry only when a login writes to it.
+    /// </summary>
+    public void Share(IEnumerable<SharedEndpoint> endpoints)
+    {
+        foreach (var e in endpoints)
+        {
+            _shared[e.Name] = e;
+        }
+    }
+
+    internal SharedEndpoint? Shared(string name) => _shared.GetValueOrDefault(name);
+
+    private bool Stored(string name) => Endpoints.Any(p => p.Key.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Adds an endpoint that so far existed only in <c>tern.json</c> to the store, on its first write.</summary>
+    internal void Attach(string name, JsonObject node)
+    {
+        if (!Stored(name))
+        {
+            Endpoints[name] = node;
+        }
+    }
 
     /// <summary>The named endpoint, or the default one when <paramref name="name"/> is null.</summary>
     public Endpoint? Find(string? name)
@@ -73,7 +101,7 @@ public sealed class LoginStore
                 return new Endpoint(this, key, obj);
             }
         }
-        return null;
+        return _shared.GetValueOrDefault(name) is { } shared ? new Endpoint(this, shared.Name, new JsonObject()) : null;
     }
 
     public Endpoint GetOrAdd(string name)
@@ -174,26 +202,46 @@ public sealed class Endpoint
 
     public string Name { get; }
 
+    /// <summary>The definition from the project's <c>tern.json</c>, if it has one for this name.</summary>
+    public SharedEndpoint? Shared => _store.Shared(Name);
+
     public string? Ref { get => Str("ref"); set => Set("ref", value); }
-    public bool AllowWrite { get => (bool?)_node["allowWrite"] ?? false; set => _node["allowWrite"] = value; }
-    public string? Host { get => Str("host"); set => Set("host", value); }
+
+    /// <summary>
+    /// The stricter of <c>tern.json</c> and <c>user.json</c>: a shared endpoint marked read-only stays
+    /// read-only whatever a local login says.
+    /// </summary>
+    public bool AllowWrite { get => Shared?.AllowWrite != false && ((bool?)_node["allowWrite"] ?? Shared?.AllowWrite ?? false); set => Writable["allowWrite"] = value; }
+
+    /// <summary>Host, authority, audience and client-credentials mode come from <c>tern.json</c> when it defines them.</summary>
+    public string? Host { get => Shared?.Host ?? Str("host"); set => Set("host", value); }
 
     /// <summary>The endpoint whose credentials and tokens this one uses.</summary>
     public Endpoint AuthSource => Ref is { } r && _store.Find(r) is { } target && target.Name != Name ? target : this;
 
-    public string? Authority { get => AuthSource.Str("authority"); set => AuthSource.Set("authority", value); }
+    public string? Authority { get => AuthSource.Shared?.Authority ?? AuthSource.Str("authority"); set => AuthSource.Set("authority", value); }
     public string? ClientId { get => AuthSource.Str("clientId"); set => AuthSource.Set("clientId", value); }
     public string? ClientSecret { get => AuthSource.Str("clientSecret"); set => AuthSource.Set("clientSecret", value); }
-    public string? Audience { get => AuthSource.Str("audience"); set => AuthSource.Set("audience", value); }
+    public string? Audience { get => AuthSource.Shared?.Audience ?? AuthSource.Str("audience"); set => AuthSource.Set("audience", value); }
     public string? AccessToken { get => AuthSource.Str("accessToken"); set => AuthSource.Set("accessToken", value); }
     public string? RefreshToken { get => AuthSource.Str("refreshToken"); set => AuthSource.Set("refreshToken", value); }
-    public bool UseClientCredentials { get => (bool?)AuthSource._node["useClientCredentials"] ?? false; set => AuthSource._node["useClientCredentials"] = value; }
-    public bool Insecure { get => (bool?)AuthSource._node["insecure"] ?? false; set => AuthSource._node["insecure"] = value; }
+    public bool UseClientCredentials { get => AuthSource.Shared?.UseClientCredentials ?? (bool?)AuthSource._node["useClientCredentials"] ?? false; set => AuthSource.Writable["useClientCredentials"] = value; }
+    public bool Insecure { get => (bool?)AuthSource._node["insecure"] ?? false; set => AuthSource.Writable["insecure"] = value; }
 
     public int? ExpiresIn
     {
         get => (int?)AuthSource._node["expiresIn"];
-        set => AuthSource._node["expiresIn"] = value;
+        set => AuthSource.Writable["expiresIn"] = value;
+    }
+
+    /// <summary>This endpoint's node, added to the store first if it so far existed only in <c>tern.json</c>.</summary>
+    private JsonObject Writable
+    {
+        get
+        {
+            _store.Attach(Name, _node);
+            return _node;
+        }
     }
 
     public DateTimeOffset? LastUpdated
@@ -214,7 +262,7 @@ public sealed class Endpoint
             {
                 o[k] = v;
             }
-            AuthSource._node["refreshTokenParameters"] = o;
+            AuthSource.Writable["refreshTokenParameters"] = o;
         }
     }
 
@@ -238,12 +286,12 @@ public sealed class Endpoint
         {
             o[k] = v;
         }
-        _node["variables"] = o;
+        Writable["variables"] = o;
     }
 
     public void SetVariable(string key, string value)
     {
-        if (_node["variables"] is not JsonObject o)
+        if (Writable["variables"] is not JsonObject o)
         {
             o = new JsonObject();
             _node["variables"] = o;
@@ -264,9 +312,15 @@ public sealed class Endpoint
         }
         else
         {
-            _node[key] = value;
+            Writable[key] = value;
         }
     }
 
     public override string ToString() => $"{Name} ({Host})";
 }
+
+/// <summary>
+/// An endpoint defined in a project's committed <c>tern.json</c>: where it is and whether it may be
+/// written to, never a secret or a token.
+/// </summary>
+public sealed record SharedEndpoint(string Name, string Host, string? Authority, string? Audience, bool? AllowWrite, bool? UseClientCredentials);

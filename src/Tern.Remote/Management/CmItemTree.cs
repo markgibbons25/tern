@@ -17,6 +17,9 @@ public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> exclude
 
     public SerializationApi Api => api;
 
+    /// <summary>Called, possibly from several threads, as each Include's items arrive, with how many there are.</summary>
+    public Action<Include, int>? Loaded { get; set; }
+
     /// <summary>
     /// Fetches the metadata of many Includes at once, so their requests run in parallel. With a
     /// split threshold, an Include whose folder holds at least that many files, or has none to go
@@ -40,10 +43,17 @@ public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> exclude
                 var results = await api.GetMetadataAsync(requests, ct);
                 for (var n = 0; n < whole.Count; n++)
                 {
-                    _metadata[whole[n]] = Shape(whole[n], results[n]);
+                    Store(whole[n], results[n]);
                 }
             }, ct),
-            Task.WhenAll(pending.Where(Split).Select(async i => _metadata[i] = Shape(i, await SplitAsync(i, ct)))));
+            Task.WhenAll(pending.Where(Split).Select(async i => Store(i, await SplitAsync(i, ct)))));
+
+        void Store(Include include, IReadOnlyList<ItemMetadata> items)
+        {
+            var shaped = Shape(include, items);
+            _metadata[include] = shaped;
+            Loaded?.Invoke(include, shaped.Count);
+        }
     }
 
     /// <summary>

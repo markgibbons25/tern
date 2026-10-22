@@ -38,6 +38,10 @@ public sealed class Session : IDisposable
     /// <summary>The folder of <c>sitecore.json</c>, or the config folder when there is none.</summary>
     public string ProjectDirectory => RootOrNull?.RootDirectory ?? ConfigDirectory;
 
+    /// <summary>Environment variables, with the <c>TERN_*</c> lines of the project folder's <c>.env</c> as a fallback.</summary>
+    public Func<string, string?> EnvironmentVariables => _environmentVariables ??= EnvironmentCredentials.Reader(ProjectDirectory);
+    private Func<string, string?>? _environmentVariables;
+
     private RootConfiguration? RootOrNull
     {
         get
@@ -77,7 +81,14 @@ public sealed class Session : IDisposable
     public FileIndexCache? FileIndex(IEnumerable<Guid> excluded) =>
         Settings.FileIndex ? FileIndexCache.ForUser("excluded:" + string.Join(",", excluded.Select(g => g.ToString("N")).Order(StringComparer.Ordinal))) : null;
 
-    public LoginStore Store => _store ??= LoginStore.Load(StorePath);
+    public LoginStore Store => _store ??= LoadStore();
+
+    private LoginStore LoadStore()
+    {
+        var store = LoginStore.Load(StorePath);
+        store.Share(ProjectEndpoints.Load(ProjectDirectory));
+        return store;
+    }
 
     /// <summary>Uses another session's login store, e.g. when installing a package from a temporary folder.</summary>
     public void UseStore(LoginStore store) => _store = store;
@@ -101,7 +112,7 @@ public sealed class Session : IDisposable
 
     public TokenProvider Tokens(Endpoint endpoint)
     {
-        var provider = new TokenProvider(endpoint, new OidcClient(Http), EnvironmentCredentials.For(endpoint.Name));
+        var provider = new TokenProvider(endpoint, new OidcClient(Http), EnvironmentCredentials.For(endpoint.Name, EnvironmentVariables));
         provider.StoreChanged += () =>
         {
             lock (Store)
