@@ -122,6 +122,15 @@ To switch a repository over, replace `dotnet sitecore` with `tern` in its script
 dotnet tool uninstall sitecore.cli
 ```
 
+### Update
+
+```bash
+dotnet tool update --global Tern.Cli
+tern --version
+```
+
+Add `--version <version>` to move to a particular release, and `--allow-downgrade` as well if it is older than the one installed. Where CI installs a pinned version, change the version there too.
+
 ### Start without a sitecore.json
 
 If the repository has never used the Sitecore CLI, install Tern manually as above, then create the configuration from the repository root:

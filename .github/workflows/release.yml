@@ -50,10 +50,16 @@ jobs:
         include:
           - os: windows-latest
             rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
           - os: ubuntu-latest
             rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
           - os: macos-15-intel
             rid: osx-x64
+          - os: macos-15
+            rid: osx-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -90,14 +96,14 @@ jobs:
           path: artifacts/nupkg
           merge-multiple: true
 
-      # The top-level package and all three RID packages, at the version being released.
+      # The top-level package and all six RID packages, at the version being released.
       - name: Check the package set
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           missing=0
-          for suffix in "" .win-x64 .linux-x64 .osx-x64; do
+          for suffix in "" .win-x64 .win-arm64 .linux-x64 .linux-arm64 .osx-x64 .osx-arm64; do
             f="artifacts/nupkg/Tern.Cli$suffix.$VERSION.nupkg"
             [ -f "$f" ] || { echo "::error::Missing $f"; missing=1; }
           done
