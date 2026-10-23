@@ -36,6 +36,23 @@ public class OperationColorTests
     }
 
     [Fact]
+    public void Summary_lines_are_green_with_a_blank_line_after_each()
+    {
+        using var err = new StringWriter();
+        var output = new Output(json: false, verbose: false, trace: false) { Err = err, Colors = true };
+        var include = new Tern.Core.Configuration.Include { Name = "x", Path = Tern.Core.Configuration.ItemPath.Parse("/sitecore/content"), Database = "master" };
+        var plan = new Plan { Direction = PlanDirection.Push, Source = "files", Target = "dev" };
+        SyncRunner.PrintPlan(output, new PlanResult(plan, [new IncludePlan(include, [], 5584)], 5584), "dev");
+        var nl = Environment.NewLine;
+        Assert.Equal(nl + "\u001b[32m[master] Discovered 0 changes after evaluating 5584 total items.\u001b[0m" + nl + nl, err.ToString());
+    }
+
+    [Theory]
+    [InlineData(4_230, "4.2 s")]
+    [InlineData(133_400, "2 min 13 s")]
+    public void Formats_how_long_a_command_ran(int ms, string text) => Assert.Equal(text, SyncRunner.FormatElapsed(TimeSpan.FromMilliseconds(ms)));
+
+    [Fact]
     public void Prints_no_line_under_json()
     {
         using var @out = new StringWriter();

@@ -5,7 +5,7 @@ namespace Tern.Cli.Common;
 
 /// <summary>
 /// Tern's own settings (ADR 0011). Highest precedence first: flags, <c>TERN_*</c> environment
-/// variables, the project's <c>tern.json</c>, the user's <c>~/.config/tern/settings.json</c>, defaults.
+/// variables, the project's <c>tern.json</c> (see <see cref="TernFolder.ConfigFile"/>), the user's <c>~/.config/tern/settings.json</c>, defaults.
 /// Flags are applied by the commands that take them.
 /// </summary>
 public sealed class TernSettings
@@ -24,14 +24,15 @@ public sealed class TernSettings
     /// <summary>Keep an index of Item files outside the project so unchanged files aren't read again.</summary>
     public bool FileIndex { get; private set; } = true;
 
-    public static TernSettings Load(string? projectDirectory)
+    /// <param name="projectFile">The project's <c>tern.json</c>, or null when it has none.</param>
+    public static TernSettings Load(string? projectFile)
     {
         var settings = new TernSettings();
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         settings.Apply(Path.Combine(home, ".config", "tern", "settings.json"));
-        if (projectDirectory is not null)
+        if (projectFile is not null)
         {
-            settings.Apply(Path.Combine(projectDirectory, "tern.json"));
+            settings.Apply(projectFile);
         }
         settings.ApplyEnvironment();
         return settings;

@@ -108,7 +108,7 @@ public class SharedEndpointTests : IDisposable
             }
             """);
 
-        var prod = Assert.Single(ProjectEndpoints.Load(_root));
+        var prod = Assert.Single(ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
 
         Assert.Equal(new SharedEndpoint("prod", "https://prod.example", null, null, false, true), prod);
     }
@@ -121,7 +121,7 @@ public class SharedEndpointTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_root, "tern.json"), $$"""{ "endpoints": { "dev": { "host": "https://dev.example", "{{property}}": "x" } } }""");
 
-        var ex = Assert.Throws<CliException>(() => ProjectEndpoints.Load(_root));
+        var ex = Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
 
         Assert.Contains(property, ex.Message, StringComparison.Ordinal);
     }
@@ -131,9 +131,9 @@ public class SharedEndpointTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_root, "tern.json"), """{ "endpoints": { "dev": { "allowWrite": true } } }""");
 
-        Assert.Throws<CliException>(() => ProjectEndpoints.Load(_root));
+        Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
     }
 
     [Fact]
-    public void Load_WithoutTernJson_IsEmpty() => Assert.Empty(ProjectEndpoints.Load(_root));
+    public void Load_WithoutTernJson_IsEmpty() => Assert.Empty(ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
 }

@@ -35,6 +35,7 @@ Tern is designed for AI agents working on your Sitecore content alongside you. T
 
 - **Review, then apply.** Save any push, pull or diff as a Plan, read it, then apply exactly that. A Plan records what it expects each target item to be, so if someone changes one in the meantime, Tern stops instead of overwriting their work.
 - **Protected environments stay protected.** An Endpoint without `allowWrite` is never written to, so a production environment can be read and compared but never pushed to.
+- **Content migrations stay apart from serialization.** The modules for moving content between environments live in the repository's `.tern` folder, where `ser pull` and `ser push` never see them and refuse to run; `content sync`, `diff` and `transfer` use them from anywhere in the repository ([the `.tern` folder](docs/settings.md#the-tern-folder)).
 - **No surprise deletes.** Destructive actions need `--yes` or a reviewed Plan, and Tern never prompts when there is no terminal, so an agent can't get stuck on a question or answer one for you.
 - **Output an agent can read.** With `--json`, every command prints exactly one JSON document on stdout, and its exit codes are documented and stable ([CLI contract](docs/cli-contract.md)). An agent works from structured results, not by scraping console text.
 - **An agent skill.** [skills/tern](skills/tern/SKILL.md) teaches an AI agent to read content, make a Plan, and apply only what was reviewed.
@@ -62,8 +63,8 @@ tern content transfer -s prod -d uat -m site-a       # a bulk copy through the C
 ### It's built for CI and scripts
 
 - **`--json` on every command.** stdout carries exactly one JSON document with a `schemaVersion`; progress and logs go to stderr.
-- **Credentials from the environment.** `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_<ENDPOINT>_CLIENT_ID` and so on) log a pipeline in without writing a secret to disk. Tern also reads them from a `.env` beside `sitecore.json`; a variable that is set wins.
-- **Shared endpoints.** A committed `tern.json` can list the team's environments, with no secrets, so nobody adds them by hand; a prod marked read-only there stays read-only ([settings](docs/settings.md#shared-endpoints)).
+- **Credentials from the environment.** `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_<ENDPOINT>_CLIENT_ID` and so on) log a pipeline in without writing a secret to disk. Tern also reads them from a gitignored `.tern/.env` or a `.env` beside `sitecore.json`; a variable that is set wins.
+- **Shared endpoints.** A committed `.tern/tern.json` can list the team's environments, with no secrets, so nobody adds them by hand; a prod marked read-only there stays read-only ([settings](docs/settings.md#shared-endpoints)).
 - **Logins that behave.** Tern refreshes a token before it expires instead of after a failed call, and a refresh writes only `user.json`, never `sitecore.json`, so it leaves no git diff.
 
 ### It does more than the Sitecore CLI
@@ -166,9 +167,11 @@ tern apply push.json                     # exactly what was reviewed, or nothing
 
 A Plan records the Signature it expects each target item to have. If anyone changes one of those items before you apply, Tern stops rather than overwriting their work.
 
+With `--pager`, when nothing is applied (`--what-if`, `--plan-out`, `ser diff` without `--push`), a list of changes taller than the terminal opens in a pager, with the keys to press on its status line: `TERN_PAGER`, then `PAGER`, then `less` (Git for Windows' copy is found too). Each summary also counts the changes by action and, when they span several modules, by module, and each command ends with how long it took and where the time went. Every command that talks to a CM first names the endpoint and its host, and says when it is read-only, so nothing runs against the wrong environment unnoticed.
+
 ### Configure Tern
 
-Tern's own settings go in a `tern.json` next to `sitecore.json`, which the Sitecore CLI ignores. Commit it to share the team's endpoints, with no secrets, and Tern's tuning settings:
+Tern's own settings go in `.tern/tern.json`, in a `.tern` folder at the repository root, which the Sitecore CLI ignores. Commit it to share the team's endpoints, with no secrets, and Tern's tuning settings:
 
 ```json
 {
@@ -181,7 +184,7 @@ Tern's own settings go in a `tern.json` next to `sitecore.json`, which the Sitec
 }
 ```
 
-An endpoint marked read-only there stays read-only, whatever a local login says. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, from a `.env` beside `sitecore.json`, or from `tern login`. Settings can also go in `~/.config/tern/settings.json` or `TERN_*` environment variables, which win. See [settings](docs/settings.md) for every option.
+An endpoint marked read-only there stays read-only, whatever a local login says. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, from a gitignored `.tern/.env`, or from `tern login`. The modules the `content` commands copy between environments go in `.tern` too, and are committed ([the `.tern` folder](docs/settings.md#the-tern-folder)). Settings can also go in `~/.config/tern/settings.json` or `TERN_*` environment variables, which win. See [settings](docs/settings.md) for every option.
 
 ### Read content without serializing it
 

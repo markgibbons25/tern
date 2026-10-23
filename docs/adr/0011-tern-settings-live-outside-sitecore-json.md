@@ -4,7 +4,7 @@ Tern has settings of its own: batch size, parallelism, keychain use and so on. T
 
 1. command-line flags
 2. `TERN_*` environment variables
-3. a project-level `tern.json` next to `sitecore.json`, which is committed
+3. a project-level `tern.json`, which is committed: `.tern/tern.json` at the repository root (ADR 0014), or else one next to `sitecore.json`
 4. `~/.config/tern/settings.json`
 5. built-in defaults
 

@@ -83,8 +83,8 @@ public static class ContentCommands
         var sourceName = request.PushOnly ? null : request.Source ?? throw new CliException("--source is required unless you use --push-only.");
         var targetName = request.SkipPush ? null : request.Target ?? throw new CliException("--target is required unless you use --skip-push.");
         var (modules, scope) = Resolve(session, request);
-        var source = sourceName is null ? null : session.Endpoint(sourceName);
-        var target = targetName is null ? null : session.Endpoint(targetName);
+        var source = sourceName is null ? null : session.Endpoint(sourceName, announce: false);
+        var target = targetName is null ? null : session.Endpoint(targetName, announce: false);
         if (source is not null && target is not null && source.Name.Equals(target.Name, StringComparison.OrdinalIgnoreCase))
         {
             throw new CliException("The source and target cannot be the same endpoint.");
@@ -95,16 +95,17 @@ public static class ContentCommands
         }
 
         var output = session.Output;
-        output.Info("Content sync");
+        List<(string Label, string Value)> rows = [];
         if (source is not null)
         {
-            output.Info($"  Source: {source.Name} ({source.Host})");
+            rows.Add(("Source", Paint(output, source, writes: false)));
         }
         if (target is not null)
         {
-            output.Info($"  Target: {target.Name} ({target.Host})");
+            rows.Add(("Target", Paint(output, target, writes: !request.WhatIf)));
         }
-        output.Info($"  Scope:  {scope}");
+        rows.Add(("Scope", scope));
+        PrintHeader(output, "Content sync", rows);
         output.Info(string.Empty);
 
         if (request.PushOnly && !HasItemFiles(modules))
@@ -119,13 +120,13 @@ public static class ContentCommands
                 // A what-if pull writes no files, so a what-if push from them would show stale
                 // changes. Comparing the two CMs shows what the sync would carry across.
                 output.Info($"What if: comparing {source.Name} with {target.Name} directly; nothing is pulled or pushed.");
-                var diff = new DiffRequest(source.Name, target.Name, [], [], null, null, null, Push: false, null) { Modules = modules };
+                var diff = new DiffRequest(source.Name, target.Name, [], [], null, null, null, Push: false, null) { Modules = modules, Announce = false };
                 return await RetryAsync(output, $"the comparison of {source.Name} with {target.Name}", () => PushRunner.DiffAsync(session, diff, ct), ct);
             }
             if (source is not null)
             {
                 output.Info($"Pulling from {source.Name}...");
-                var pull = new SyncRequest(source.Name, [], [], request.WhatIf, SkipValidation: false, Force: false, PlanOut: null, Publish: false, PublishTargets: []) { Modules = modules };
+                var pull = new SyncRequest(source.Name, [], [], request.WhatIf, SkipValidation: false, Force: false, PlanOut: null, Publish: false, PublishTargets: []) { Modules = modules, Announce = false };
                 var code = await RetryAsync(output, $"the pull from {source.Name}", () => SyncRunner.PullAsync(session, pull, ct), ct);
                 if (code != ExitCodes.Success)
                 {
@@ -141,7 +142,7 @@ public static class ContentCommands
                 {
                     var label = string.Join(", ", batch.Select(m => m.Namespace));
                     output.Info($"Pushing {label} to {target.Name}...");
-                    var push = new SyncRequest(target.Name, [], [], request.WhatIf, SkipValidation: false, Force: true, PlanOut: null, Publish: false, PublishTargets: []) { Modules = batch };
+                    var push = new SyncRequest(target.Name, [], [], request.WhatIf, SkipValidation: false, Force: true, PlanOut: null, Publish: false, PublishTargets: []) { Modules = batch, Announce = false };
                     var code = await RetryAsync(output, $"the push of {label} to {target.Name}", () => PushRunner.PushAsync(session, push, ct), ct);
                     if (code != ExitCodes.Success)
                     {
@@ -167,26 +168,46 @@ public static class ContentCommands
         return exit;
     }
 
+    /// <summary>
+    /// The block that opens a content command: a bold title, then dim labels with their values
+    /// lined up under it.
+    /// </summary>
+    internal static void PrintHeader(Output output, string title, IReadOnlyList<(string Label, string Value)> rows)
+    {
+        output.Info(title, "1");
+        var width = rows.Max(r => r.Label.Length) + 1;
+        foreach (var (label, value) in rows)
+        {
+            output.Info($"  {output.Paint(SyncRunner.DimColor, (label + ":").PadRight(width))} {value}");
+        }
+    }
+
+    /// <summary>An endpoint's name, cyan when only read and yellow when written to, then its host, dim.</summary>
+    internal static string Paint(Output output, Tern.Remote.Login.Endpoint endpoint, bool writes) =>
+        output.PaintEndpoint(endpoint.Name, endpoint.Host, writes ? Output.WriteColor : Output.ReadColor);
+
     public static async Task<int> DiffAsync(Session session, ContentRequest request, CancellationToken ct)
     {
         var sourceName = request.Source ?? throw new CliException("--source is required.");
         var targetName = request.Target ?? throw new CliException("--target is required.");
         var (modules, scope) = Resolve(session, request);
-        var source = session.Endpoint(sourceName);
-        var target = session.Endpoint(targetName);
+        var source = session.Endpoint(sourceName, announce: false);
+        var target = session.Endpoint(targetName, announce: false);
         if (source.Name.Equals(target.Name, StringComparison.OrdinalIgnoreCase))
         {
             throw new CliException("The source and target cannot be the same endpoint.");
         }
 
         var output = session.Output;
-        output.Info("Content diff");
-        output.Info($"  Source: {source.Name} ({source.Host})");
-        output.Info($"  Target: {target.Name} ({target.Host})");
-        output.Info($"  Scope:  {scope}");
-        output.Info(request.Push ? $"  Mode:   diff and apply (writes to {target.Name})" : "  Mode:   diff only (read-only)");
+        PrintHeader(output, "Content diff",
+        [
+            ("Source", Paint(output, source, writes: false)),
+            ("Target", Paint(output, target, writes: request.Push)),
+            ("Scope", scope),
+            ("Mode", request.Push ? output.Paint(Output.WriteColor,$"diff and apply (writes to {target.Name})") : output.Paint(SyncRunner.SummaryColor, "diff only (read-only)")),
+        ]);
 
-        var diff = new DiffRequest(source.Name, target.Name, [], [], null, null, null, request.Push, null) { Modules = modules };
+        var diff = new DiffRequest(source.Name, target.Name, [], [], null, null, null, request.Push, null) { Modules = modules, Announce = false };
         var (exit, steps) = await CaptureStepsAsync(output, () => PushRunner.DiffAsync(session, diff, ct));
         output.Document("content diff", w =>
         {
@@ -207,6 +228,14 @@ public static class ContentCommands
         {
             throw new CliException("--scope needs --path.");
         }
+        // The .tern folder's Modules, once it has any, are the content commands' own; it also holds a
+        // --path run's Item files, and stands in for a sitecore.json the current folder can't see.
+        var ternFolder = session.TernFolder is { } tern && (TernFolder.HasModules(tern) || request.Path is not null || !session.HasSitecoreJson);
+        if (ternFolder)
+        {
+            session.UseTernFolder();
+        }
+        var where = ternFolder ? TernFolder.Name : "sitecore.json";
         if (request.Path is { } path)
         {
             if (request.Module is not null)
@@ -230,8 +259,8 @@ public static class ContentCommands
             var matched = ContentScope.Match(ContentScope.Candidates(session), name, request.SkipMedia);
             return (ContentScope.MediaFirst(ConfigurationLoader.Validate(matched, session.Output.Warn)), Describe(matched));
         }
-        var all = ContentScope.MediaFirst(ConfigurationLoader.Validate(ContentScope.All(session.AllModules, request.SkipMedia), session.Output.Warn));
-        return (all, (request.SkipMedia ? "every module in sitecore.json except media: " : "every module in sitecore.json: ") + Describe(all));
+        var all = ContentScope.MediaFirst(ConfigurationLoader.Validate(ContentScope.All(session.AllModules, request.SkipMedia, where), session.Output.Warn));
+        return (all, (request.SkipMedia ? $"every module in {where} except media: " : $"every module in {where}: ") + Describe(all));
     }
 
     private static string Describe(IEnumerable<Module> modules) =>
@@ -315,7 +344,7 @@ public sealed class ContentOptions
 {
     private readonly Option<string?> _source = new("--source", "-s") { Description = "Named endpoint to read content from" };
     private readonly Option<string?> _target = new("--target", "--destination", "-d") { Description = "Named endpoint to write content to, or to compare with" };
-    private readonly Option<string?> _module = new("--module", "-m") { Description = "One module instead of every module in sitecore.json: its file name, namespace, or the end of its file name. A content module and its media twin both match" };
+    private readonly Option<string?> _module = new("--module", "-m") { Description = "One module instead of every module in .tern (or sitecore.json, when .tern has none): its file name, namespace, or the end of its file name. A content module and its media twin both match" };
     private readonly Option<string?> _path = new("--path", "-p") { Description = "One item path instead of modules" };
     private readonly Option<string?> _scope = new("--scope") { Description = "With --path: ItemAndDescendants (default), ItemAndChildren, SingleItem or DescendantsOnly" };
     private readonly Option<string> _database = new("--database") { Description = "With --path: the database on both sides", DefaultValueFactory = _ => "master" };

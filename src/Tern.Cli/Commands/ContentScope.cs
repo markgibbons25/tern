@@ -4,8 +4,9 @@ using Tern.Core.Configuration;
 namespace Tern.Cli.Commands;
 
 /// <summary>
-/// Chooses the Modules a <c>content sync</c> or <c>content diff</c> covers: every Module
-/// <c>sitecore.json</c> registers, one Module named with <c>--module</c>, or an item path.
+/// Chooses the Modules a <c>content sync</c> or <c>content diff</c> covers: every Module in the
+/// repository's <c>.tern</c> folder (or, when it has none, every one <c>sitecore.json</c> registers), one
+/// Module named with <c>--module</c>, or an item path.
 /// </summary>
 public static class ContentScope
 {
@@ -33,16 +34,19 @@ public static class ContentScope
     }
 
     /// <summary>Every candidate Module, less the media Modules when <paramref name="skipMedia"/>.</summary>
-    public static List<Module> All(IReadOnlyList<Module> registered, bool skipMedia)
+    /// <param name="where">Where the Modules came from, <c>.tern</c> or <c>sitecore.json</c>, for messages.</param>
+    public static List<Module> All(IReadOnlyList<Module> registered, bool skipMedia, string where = "sitecore.json")
     {
         if (registered.Count == 0)
         {
-            throw new CliException("sitecore.json registers no modules. Name one with --module, or an item path with --path.");
+            throw new CliException(where == TernFolder.Name
+                ? "The .tern folder has no modules. Add a *.module.json to it, name one with --module, or an item path with --path."
+                : "sitecore.json registers no modules. Name one with --module, or an item path with --path.");
         }
         var selected = MediaFirst(registered.Where(m => !skipMedia || !IsMedia(m)));
         if (selected.Count == 0)
         {
-            throw new CliException("--skip-media left nothing to do: every module in sitecore.json is a media module.");
+            throw new CliException($"--skip-media left nothing to do: every module in {where} is a media module.");
         }
         return selected;
     }
@@ -116,7 +120,7 @@ public static class ContentScope
         return candidates;
     }
 
-    /// <summary>A Module for one item path, whose Item files go to <c>items/adhoc</c> beside <c>sitecore.json</c>.</summary>
+    /// <summary>A Module for one item path, whose Item files go to <c>items/adhoc</c> in the root's folder: <c>.tern</c>, or beside <c>sitecore.json</c>.</summary>
     public static Module ForPath(Session session, string path, string database, TreeScope scope)
     {
         if (!path.StartsWith('/'))

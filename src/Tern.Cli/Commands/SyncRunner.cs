@@ -18,25 +18,32 @@ public static class SyncRunner
     {
         var output = session.Output;
         var watch = Stopwatch.StartNew();
+        var phases = new Phases(watch);
         if (request.WhatIf)
         {
             output.Info("What if mode is active. No changes will be made.");
         }
         var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
-        var endpoint = session.Endpoint(request.Environment);
+        var endpoint = session.Endpoint(request.Environment, announce: false);
         var includes = modules.SelectMany(m => m.Includes).ToList();
         var excluded = session.ExcludedFields(modules).ToHashSet();
         bool IncludeField(Guid id) => !excluded.Contains(id);
+        if (request.Announce)
+        {
+            output.Info($"Pulling from {Describe(endpoint)}.");
+        }
 
         var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
         var validation = request.SkipValidation ? Task.FromResult(new List<ValidationIssue>()) : Task.Run(() => FileValidator.Validate(includes, files), ct);
         var cm = new CmItemTree(session.Serialization(endpoint), [.. excluded], endpoint.Name);
-        await cm.PrefetchAsync(includes, ct, FileItemTree.CountFiles);
+        await ReadAsync(output, includes, [(cm, endpoint.Name)], FileItemTree.CountFiles, ct);
         output.Debug($"Prefetched metadata for {includes.Count} includes in {watch.ElapsedMilliseconds} ms ({cm.Api.Client.RequestCount} requests).");
+        phases.End("read");
 
         var engine = new SyncEngine(cm, files, new FileApplier(files, IncludeField), PlanDirection.Pull);
         var result = await engine.PlanAsync(includes, request.Force, ct);
-        PrintPlan(output, result, endpoint.Name);
+        PrintPlan(output, result, endpoint.Name, page: request.WhatIf || request.PlanOut is not null);
+        phases.End("compare");
 
         var issues = await validation;
         if (issues.Count > 0)
@@ -57,9 +64,12 @@ public static class SyncRunner
                 Directory.CreateDirectory(include.PhysicalRoot);
             }
         }
+        phases.End("apply");
         var security = new SecuritySync(new SecurityApi(cm.Api.Client), session.Root);
         await RunSecurityAsync(output, "roles", "role", () => security.PlanRolePullAsync(modules, ct), request, ct);
         await RunSecurityAsync(output, "users", "user", () => security.PlanUserPullAsync(modules, ct), request, ct);
+        phases.End("roles and users");
+        PrintElapsed(output, phases);
         return exit;
     }
 
@@ -75,7 +85,7 @@ public static class SyncRunner
         {
             output.Info(string.Empty);
         }
-        output.Info($"[{label}] Discovered {changes.Count} changes after evaluating {entity} list.");
+        output.Info($"[{label}] Discovered {changes.Count} changes after evaluating {entity} list.", SummaryColor);
         output.Info(string.Empty);
         if (!request.WhatIf && request.PlanOut is null)
         {
@@ -125,32 +135,130 @@ public static class SyncRunner
             w.WritePropertyName("plan");
             PlanJson.Write(w, result.Plan);
         });
-        output.Debug($"Finished in {watch.ElapsedMilliseconds} ms.");
         return ExitCodes.Success;
     }
 
-    internal static void PrintPlan(Output output, PlanResult result, string endpointName)
+    /// <summary>
+    /// Prints each operation and each database's summary. With <paramref name="page"/>, set when
+    /// nothing is applied afterwards, a list taller than the terminal goes through a pager.
+    /// </summary>
+    internal static void PrintPlan(Output output, PlanResult result, string endpointName, bool page = false)
     {
         foreach (var warning in result.Plan.Warnings)
         {
             output.Warn(warning);
         }
+        // As the Official CLI does: one blank line before the first summary and one after each.
+        List<(string Text, string? Color)> lines = [(string.Empty, null)];
         foreach (var group in result.Includes.GroupBy(i => i.Include.Database, StringComparer.OrdinalIgnoreCase))
         {
             var db = group.Key;
             var ops = group.SelectMany(g => g.Operations).ToList();
-            output.Info(string.Empty);
             foreach (var op in ops)
             {
-                output.Info($"[{db}] {Describe(op)}", ColorOf(op.Action));
+                lines.Add(($"[{db}] {Describe(op)}", ColorOf(op.Action)));
             }
             if (ops.Count > 0)
             {
-                output.Info(string.Empty);
+                lines.Add((string.Empty, null));
             }
-            output.Info($"[{db}] Discovered {ops.Count} changes after evaluating {group.Sum(g => g.NodesEvaluated)} total items.");
+            lines.Add(($"[{db}] Discovered {ops.Count} changes after evaluating {group.Sum(g => g.NodesEvaluated)} total items.", SummaryColor));
+            if (ops.Count > 0)
+            {
+                lines.Add(($"[{db}] {CountByAction(ops)}", DimColor));
+            }
+            lines.Add((string.Empty, null));
         }
+        lines.AddRange(ModuleTable(result.Plan.Operations).Select(l => (l, (string?)null)));
+        output.Page(lines, page);
     }
+
+    /// <summary>"3 added, 7 updated, 2 deleted", naming only the actions there are.</summary>
+    internal static string CountByAction(IEnumerable<PlanOperation> ops)
+    {
+        var counts = ops.CountBy(o => o.Action).ToDictionary();
+        return string.Join(", ", ActionNames.Where(a => counts.ContainsKey(a.Action)).Select(a => $"{counts[a.Action]:N0} {a.Name}"));
+    }
+
+    /// <summary>
+    /// The changes in each module, when they span more than one, so a large Plan can be read at a
+    /// glance. Empty otherwise.
+    /// </summary>
+    internal static List<string> ModuleTable(IReadOnlyList<PlanOperation> ops)
+    {
+        var modules = ops.GroupBy(o => o.Module, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        if (modules.Count < 2)
+        {
+            return [];
+        }
+        var actions = ActionNames.Where(a => ops.Any(o => o.Action == a.Action)).ToList();
+        var width = Math.Max("Module".Length, modules.Max(m => m.Key.Length));
+        string Row(string name, IEnumerable<string> cells) => ("  " + name.PadRight(width) + string.Concat(cells.Zip(actions, (c, a) => "  " + c.PadLeft(Math.Max(a.Name.Length, 5))))).TrimEnd();
+        List<string> rows = ["Changes by module:", Row("Module", actions.Select(a => a.Name))];
+        rows.AddRange(modules.Select(m => Row(m.Key, actions.Select(a => m.Count(o => o.Action == a.Action) is var n and > 0 ? $"{n:N0}" : "-"))));
+        rows.Add(string.Empty);
+        return rows;
+    }
+
+    private static readonly (PlanAction Action, string Name)[] ActionNames =
+        [(PlanAction.Create, "added"), (PlanAction.Update, "updated"), (PlanAction.Delete, "deleted"), (PlanAction.Move, "moved"), (PlanAction.Rename, "renamed")];
+
+    /// <summary>The colour of the "Discovered N changes" lines, green as in the Official CLI.</summary>
+    internal const string SummaryColor = "32";
+
+    /// <summary>The colour of secondary lines: counts, timings.</summary>
+    internal const string DimColor = Output.Dim;
+
+    /// <summary>"dev (https://xmc-….sitecorecloud.io)", or just the name when it has no host.</summary>
+    internal static string Describe(Tern.Remote.Login.Endpoint endpoint) => endpoint.Host is { } host ? $"{endpoint.Name} ({host})" : endpoint.Name;
+
+    /// <summary>
+    /// Reads every Include from one or more CMs at once, showing how far each has got. A large scope
+    /// can take minutes, and without this nothing would show. Returns how many items each returned.
+    /// </summary>
+    internal static async Task<int[]> ReadAsync(Output output, IReadOnlyList<Include> includes, IReadOnlyList<(CmItemTree Tree, string Name)> sides, Func<Include, int?>? sizeHint, CancellationToken ct)
+    {
+        var watch = Stopwatch.StartNew();
+        var done = new int[sides.Count];
+        var items = new int[sides.Count];
+        void Show() => output.Progress("Reading: " + string.Join(", ", sides.Select((s, n) => $"{s.Name} {Volatile.Read(ref done[n])}/{includes.Count} includes ({Volatile.Read(ref items[n]):N0} items)")) + $", {watch.Elapsed.TotalSeconds:0} s");
+        for (var n = 0; n < sides.Count; n++)
+        {
+            var side = n;
+            sides[n].Tree.Loaded = (_, count) =>
+            {
+                Interlocked.Add(ref items[side], count);
+                Interlocked.Increment(ref done[side]);
+                Show();
+            };
+        }
+        using var timer = new Timer(_ => Show(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        try
+        {
+            await Task.WhenAll(sides.Select(s => s.Tree.PrefetchAsync(includes, ct, sizeHint)));
+        }
+        finally
+        {
+            await timer.DisposeAsync();
+            foreach (var side in sides)
+            {
+                side.Tree.Loaded = null;
+            }
+            output.EndProgress();
+        }
+        return items;
+    }
+
+    /// <summary>The closing line of a sync command: how long it ran, and on what.</summary>
+    internal static void PrintElapsed(Output output, Phases phases)
+    {
+        output.Info($"Finished in {phases.Summary()}.", DimColor);
+        output.ElapsedShown = true;
+    }
+
+    internal static string FormatElapsed(TimeSpan elapsed) => elapsed < TimeSpan.FromMinutes(1)
+        ? $"{elapsed.TotalSeconds:0.0} s"
+        : $"{(int)elapsed.TotalMinutes} min {elapsed.Seconds} s";
 
     internal static string Describe(PlanOperation op) => op.Action switch
     {

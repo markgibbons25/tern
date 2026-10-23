@@ -1,6 +1,6 @@
 # Settings
 
-Tern's own settings live outside `sitecore.json` ([ADR 0011](adr/0011-tern-settings-live-outside-sitecore-json.md)). Each one can be set in `tern.json` next to `sitecore.json`, in `~/.config/tern/settings.json`, or with its environment variable, which wins.
+Tern's own settings live outside `sitecore.json` ([ADR 0011](adr/0011-tern-settings-live-outside-sitecore-json.md)). Each one can be set in the project's `tern.json`, in `~/.config/tern/settings.json`, or with its environment variable, which wins. The project's `tern.json` lives in the [`.tern` folder](#the-tern-folder) at the repository root; a `tern.json` beside `sitecore.json` is still read when there is no `.tern/tern.json`.
 
 | Setting | Variable | Default | What it does |
 |---|---|---|---|
@@ -24,9 +24,28 @@ The project's `tern.json` can also list the team's endpoints, so nobody has to a
 }
 ```
 
-Each endpoint takes `host` (required), `authority`, `audience`, `allowWrite` and `useClientCredentials`, and nothing else: a client ID, secret or token is refused, since the file is committed. Authority and audience default to SitecoreAI's. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, as variables or in a `.env` beside `sitecore.json`, or from `tern login`.
+Each endpoint takes `host` (required), `authority`, `audience`, `allowWrite` and `useClientCredentials`, and nothing else: a client ID, secret or token is refused, since the file is committed. Authority and audience default to SitecoreAI's. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, as variables or in a gitignored `.tern/.env` (or a `.env` beside `sitecore.json`), or from `tern login`.
 
 `tern.json` wins over `user.json` for where an endpoint is, `user.json` keeps the tokens, and `allowWrite` is the stricter of the two. `tern env list` marks these endpoints `(tern.json)`.
+
+## The `.tern` folder
+
+Tern keeps its project files in a committed `.tern` folder at the repository root ([ADR 0014](adr/0014-the-tern-folder-at-the-repository-root.md)). Tern finds it from any folder in the repository, looking up no further than the folder with `.git`, so content can be moved between environments from anywhere:
+
+```text
+.tern/
+  tern.json                       settings and shared endpoints (committed)
+  content-site-a.module.json      Modules for the content commands (committed)
+  media-site-a.module.json
+  .env                            TERN_* credentials (gitignored)
+  items/                          Item files the content commands pull (usually gitignored)
+```
+
+- **`tern.json`** holds the settings above and the [shared endpoints](#shared-endpoints).
+- **`.env`** is read before a `.env` beside `sitecore.json`; a variable that is set wins over both.
+- **Modules** in `.tern` are the content commands' own. Once there is one, `content sync`, `content diff` and `content transfer` use the `.tern` Modules and no longer `sitecore.json`'s, and `--module` names any one of them. Without `--module` they take every `.tern` Module, or only those that a `"modules"` list of globs in `.tern/tern.json` names, such as `["migration-media.module.json", "migration-content.module.json"]`, so a Module for a one-off job (templates, roles) runs only when named. Their Item files go to `.tern/items/<include>`, and a `--path` run's to `.tern/items/adhoc`. They take `sitecore.json`'s excluded fields and path length, when there is one, but never remove roles or users the source lacks, whatever its `removeOrphansForRoles` and `removeOrphansForUsers` say.
+- **Serialization never touches them.** `ser` commands leave the `.tern` Modules out even where a glob such as `**/*.module.json` reaches them (with a warning to narrow it), and `ser pull`, `ser push` and `ser watch` refuse to run inside `.tern`, with a message naming the folder of `sitecore.json` to change to. The Sitecore CLI doesn't know `.tern`, so a broad glob does reach the folder for `dotnet sitecore`.
+- **Logins** stay in `.sitecore/user.json` beside `sitecore.json`. Run from a folder with no `sitecore.json` above it, Tern uses `.sitecore/user.json` at the repository root.
 
 ## Why the defaults are what they are
 

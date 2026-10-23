@@ -162,7 +162,7 @@ public static class LoginCommands
         var setDefault = new Command("set-default", "Set the default environment") { setName };
         setDefault.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, _) =>
         {
-            var endpoint = session.Endpoint(parse.GetValue(setName));
+            var endpoint = session.Endpoint(parse.GetValue(setName), announce: false);
             session.Store.DefaultEndpointName = endpoint.Name;
             session.Store.Save();
             session.Output.Info($"'{endpoint.Name}' is now the default environment.");
@@ -204,7 +204,7 @@ public static class LoginCommands
         var info = new Command("info", "Show information about the environment's CM") { infoName };
         info.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {
-            var endpoint = session.Endpoint(parse.GetValue(infoName));
+            var endpoint = session.Endpoint(parse.GetValue(infoName), announce: false);
             var system = new SystemApi(session.Management(endpoint));
             var details = await system.InfoAsync(token);
             var (queries, mutations) = await system.RootFieldsAsync(token);

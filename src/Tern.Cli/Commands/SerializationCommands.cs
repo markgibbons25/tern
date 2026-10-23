@@ -241,7 +241,11 @@ public static class SerializationCommands
         var o = new SyncOptions();
         var cmd = new Command("pull", "Serialize content items from a Sitecore instance to the file system");
         o.AddTo(cmd);
-        cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, token) => SyncRunner.PullAsync(session, o.Read(parse), token), ct));
+        cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, token) =>
+        {
+            TernFolder.Guard(session, "ser pull");
+            return SyncRunner.PullAsync(session, o.Read(parse), token);
+        }, ct));
         return cmd;
     }
 
@@ -250,7 +254,11 @@ public static class SerializationCommands
         var o = new SyncOptions(push: true);
         var cmd = new Command("push", "Deserialize content items from the file system to a Sitecore instance");
         o.AddTo(cmd);
-        cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, token) => SyncRunner.PushAsync(session, o.Read(parse), token), ct));
+        cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, token) =>
+        {
+            TernFolder.Guard(session, "ser push");
+            return SyncRunner.PushAsync(session, o.Read(parse), token);
+        }, ct));
         return cmd;
     }
 
@@ -323,10 +331,16 @@ public sealed record SyncRequest(string? Environment, IReadOnlyList<string> Incl
 {
     /// <summary>The Modules to sync, chosen by the caller; when null, <see cref="Include"/> and <see cref="Exclude"/> select them.</summary>
     public IReadOnlyList<Module>? Modules { get; init; }
+
+    /// <summary>Whether to name the endpoint first; false when the caller has already shown it.</summary>
+    public bool Announce { get; init; } = true;
 }
 
 public sealed record DiffRequest(string Source, string Destination, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, string? Path, string? SourceDatabase, string? DestinationDatabase, bool Push, string? PlanOut)
 {
     /// <summary>The Modules to compare, chosen by the caller; when null, the path or the include and exclude filters decide.</summary>
     public IReadOnlyList<Module>? Modules { get; init; }
+
+    /// <summary>Whether to name the endpoints first; false when the caller has already shown them.</summary>
+    public bool Announce { get; init; } = true;
 }

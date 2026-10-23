@@ -2,24 +2,26 @@
 
 `tern content sync`, `tern content diff` and `tern content transfer` copy and compare content between two environments. Sync and diff do the job that content-sync scripts built around `ser pull`, `ser push` and `ser diff` usually do, without rewriting `sitecore.json` or logging in again on every run ([replacing such a script](#replacing-a-content-sync-script)).
 
-Run them from the folder that holds that `sitecore.json` (or pass `-c`). `--source` and `--target` are Endpoint names, so set each environment up once:
+Their Modules live in the repository's [`.tern` folder](settings.md#the-tern-folder), so they run from any folder in the repository; without `.tern` Modules, they use `sitecore.json`'s, from the folder that holds it (or pass `-c`). `--source` and `--target` are Endpoint names, so set each environment up once:
 
 ```bash
 tern login -n prod --authority https://auth.sitecorecloud.io --cm https://<prod-cm> --client-credentials true --client-id <id> --client-secret <secret> --allow-write false
 tern login -n uat  --authority https://auth.sitecorecloud.io --cm https://<uat-cm>  --client-credentials true --client-id <id> --client-secret <secret> --allow-write true
 ```
 
-To keep the secret off disk, leave out `--client-id` and `--client-secret` and set `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_PROD_CLIENT_ID` and so on) instead, as environment variables or in a `.env` beside `sitecore.json`. Tern reads only the `TERN_*` lines of that file, and a variable that is set wins. `--allow-write false` is what keeps an environment such as prod from ever being pushed to.
+To keep the secret off disk, leave out `--client-id` and `--client-secret` and set `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET` (or `TERN_PROD_CLIENT_ID` and so on) instead, as environment variables or in a gitignored `.tern/.env` (or a `.env` beside `sitecore.json`). Tern reads only the `TERN_*` lines of that file, and a variable that is set wins. `--allow-write false` is what keeps an environment such as prod from ever being pushed to.
 
-For a team, list the environments in a committed `tern.json` beside `sitecore.json` instead, so nobody logs in to each one: hosts and `allowWrite` go in `tern.json`, the client credentials in a gitignored `.env`, and a committed `"allowWrite": false` on prod can't be overridden locally ([shared endpoints](settings.md#shared-endpoints)).
+For a team, list the environments in a committed `.tern/tern.json` instead, so nobody logs in to each one: hosts and `allowWrite` go in `tern.json`, the client credentials in a gitignored `.env`, and a committed `"allowWrite": false` on prod can't be overridden locally ([shared endpoints](settings.md#shared-endpoints)).
+
+Keep the content Modules in `.tern`, apart from the project's serialization Modules: a pulled copy of prod's content then lives in `.tern/items`, `ser push` never sees it, and `ser pull` and `ser push` refuse to run inside `.tern` ([the `.tern` folder](settings.md#the-tern-folder)).
 
 ## What to compare or copy
 
 | Options | Covers |
 |---|---|
-| none | Every Module `sitecore.json` registers |
-| `--module <name>` / `-m` | One Module, matched by file name, namespace, or the end of its file name. It need not be registered in `sitecore.json`: any `*.module.json` beside it can be named. When the name matches a content Module and its media twin (file names that differ only by `content` and `media`, such as `content-site-a` and `media-site-a`), both are used. Any other multiple match is refused as ambiguous. |
-| `--path <item path>` / `-p` | One item path. `--scope` is `ItemAndDescendants` (the default), `ItemAndChildren`, `SingleItem` or `DescendantsOnly`; `--database` defaults to `master`. Item files go to `items/adhoc` beside `sitecore.json`. |
+| none | Every Module in `.tern` (or those its `tern.json` `"modules"` globs name), or, when `.tern` has none, every Module `sitecore.json` registers |
+| `--module <name>` / `-m` | One Module, matched by file name, namespace, or the end of its file name: one in `.tern`, or, when it has none, any `*.module.json` beside `sitecore.json`, registered or not. When the name matches a content Module and its media twin (file names that differ only by `content` and `media`, such as `content-site-a` and `media-site-a`), both are used. Any other multiple match is refused as ambiguous. |
+| `--path <item path>` / `-p` | One item path. `--scope` is `ItemAndDescendants` (the default), `ItemAndChildren`, `SingleItem` or `DescendantsOnly`; `--database` defaults to `master`. Item files go to `.tern/items/adhoc` (or `items/adhoc` beside `sitecore.json`, when there is no `.tern`). |
 | `--skip-media` (or `--exclude-media`) | Leaves out media Modules: those whose includes all lie under `/sitecore/media library`. Not allowed with `--path`. |
 
 Media Modules always go first, so content never arrives before the media it links to.
@@ -120,9 +122,9 @@ What the numbers mean:
 
 | What such a script does | Tern |
 |---|---|
-| Keeps a table of environments, with each CM's host and whether it may be written to | Endpoints in `.sitecore/user.json` (`tern login -n <name>`) and their `allowWrite` |
+| Keeps a table of environments, with each CM's host and whether it may be written to | Endpoints in `.tern/tern.json`, or in `.sitecore/user.json` (`tern login -n <name>`), and their `allowWrite` |
 | Logs in with client credentials on every run, read from parameters or a `.env` file | `tern login` once, or `TERN_CLIENT_ID` / `TERN_CLIENT_SECRET`, which can stay in the same `.env` |
-| Rewrites the `modules` list in `sitecore.json` to pick a module, then restores it | `-m <module>` |
+| Keeps its own `sitecore.json` and content modules, or rewrites the `modules` list in `sitecore.json` to pick a module, then restores it | Content Modules in `.tern`, and `-m <module>` |
 | Writes a temporary module for one item path | `-p <path>` with `--scope` |
 | Drops the media modules | `--skip-media` |
 | Pulls only, so the files can be reviewed, then pushes later | `--skip-push`, then `--push-only` |

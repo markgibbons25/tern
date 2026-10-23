@@ -1,0 +1,15 @@
+# Tern
+
+## Build and test
+
+- Tests: `dotnet test Tern.slnx`
+- Native AOT exe (Windows): `dotnet publish src/Tern.Cli -c Release -r win-x64 -o artifacts/tern` writes `artifacts/tern/tern.exe` (`artifacts/` is git-ignored).
+- Keep `artifacts/tern/tern.exe` up to date: republish it after every change under `src/` once the tests pass, before reporting the work done. Other repositories (such as ucq-sitecore-web) run that exe, so a stale one tests old behaviour.
+
+## Native AOT linker on Windows
+
+The ILCompiler targets call `vswhere.exe` from PATH to find the MSVC linker. The Visual Studio Installer folder is often not on PATH, and then the publish fails with `'vswhere.exe' is not recognized` and `link.exe ... exited with code 123`. Put it on PATH for the command before publishing:
+
+```powershell
+$env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:PATH
+```

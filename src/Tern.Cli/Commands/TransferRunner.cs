@@ -29,8 +29,8 @@ public static class TransferRunner
         var sourceName = request.Source ?? throw new CliException("--source is required.");
         var targetName = request.Target ?? throw new CliException("--target is required.");
         var (modules, scope) = ContentCommands.Resolve(session, request);
-        var source = session.Endpoint(sourceName);
-        var target = session.Endpoint(targetName);
+        var source = session.Endpoint(sourceName, announce: false);
+        var target = session.Endpoint(targetName, announce: false);
         if (source.Name.Equals(target.Name, StringComparison.OrdinalIgnoreCase))
         {
             throw new CliException("The source and target cannot be the same endpoint.");
@@ -45,11 +45,13 @@ public static class TransferRunner
         }
 
         var output = session.Output;
-        output.Info("Content transfer");
-        output.Info($"  Source: {source.Name} ({source.Host})");
-        output.Info($"  Target: {target.Name} ({target.Host})");
-        output.Info($"  Scope:  {scope}");
-        output.Info($"  Merge:  {options.Merge}");
+        ContentCommands.PrintHeader(output, "Content transfer",
+        [
+            ("Source", ContentCommands.Paint(output, source, writes: false)),
+            ("Target", ContentCommands.Paint(output, target, writes: !request.WhatIf)),
+            ("Scope", scope),
+            ("Merge", $"{options.Merge}"),
+        ]);
         output.Info(string.Empty);
 
         // Which Data Trees carry exactly what the Includes serialize, read from the source.

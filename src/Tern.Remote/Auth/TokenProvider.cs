@@ -139,14 +139,14 @@ public sealed record EnvironmentCredentials(string ClientId, string ClientSecret
 
     /// <summary>
     /// Reads environment variables, falling back to the <c>TERN_*</c> lines of a <c>.env</c> file in
-    /// <paramref name="directory"/>, so a content-sync folder's <c>.env</c> works without loading it first.
-    /// A variable that is set always wins over the file.
+    /// each of <paramref name="directories"/>, the first folder's file first, so a project's <c>.env</c>
+    /// works without loading it first. A variable that is set always wins over the files.
     /// </summary>
-    public static Func<string, string?> Reader(string? directory)
+    public static Func<string, string?> Reader(params string?[]? directories)
     {
-        var file = directory is null ? null : Path.Combine(directory, ".env");
-        var values = file is not null && File.Exists(file) ? DotEnv.Parse(File.ReadAllLines(file)) : [];
-        return name => Environment.GetEnvironmentVariable(name) ?? values.GetValueOrDefault(name);
+        var files = (directories ?? []).OfType<string>().Select(d => Path.Combine(d, ".env")).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(f => DotEnv.Parse(File.ReadAllLines(f))).ToList();
+        return name => Environment.GetEnvironmentVariable(name) ?? files.Select(v => v.GetValueOrDefault(name)).FirstOrDefault(v => v is not null);
     }
 }
 

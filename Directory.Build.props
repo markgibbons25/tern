@@ -9,7 +9,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Authors>Mark Gibbons</Authors>
     <Copyright>Copyright (c) 2026 Mark Gibbons</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

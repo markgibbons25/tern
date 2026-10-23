@@ -7,7 +7,7 @@ Versions stay at `0.1.x`, and finishing a milestone does not bump them. Moving p
 | | |
 |---|---|
 | Package | `Tern.Cli`, command `tern` |
-| Settings | `tern.json`, `TERN_*` ([ADR 0011](adr/0011-tern-settings-live-outside-sitecore-json.md)) |
+| Settings | `.tern/tern.json`, `TERN_*` ([ADR 0011](adr/0011-tern-settings-live-outside-sitecore-json.md), [ADR 0014](adr/0014-the-tern-folder-at-the-repository-root.md)) |
 
 1. **M1: read side.**
    - Commands: `login`, `connect`, `env`; `ser info`, `explain`, `validate`, `pull`, `diff`.

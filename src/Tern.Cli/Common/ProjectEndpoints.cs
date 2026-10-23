@@ -13,9 +13,9 @@ public static class ProjectEndpoints
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal) { "host", "authority", "audience", "allowWrite", "useClientCredentials" };
 
-    public static IReadOnlyList<SharedEndpoint> Load(string? projectDirectory)
+    /// <param name="file">The project's <c>tern.json</c> (see <see cref="TernFolder.ConfigFile"/>), or null when it has none.</param>
+    public static IReadOnlyList<SharedEndpoint> Load(string? file)
     {
-        var file = projectDirectory is null ? null : Path.Combine(projectDirectory, "tern.json");
         if (file is null || !File.Exists(file))
         {
             return [];

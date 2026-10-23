@@ -17,12 +17,13 @@ public static class PushRunner
     {
         var output = session.Output;
         var watch = Stopwatch.StartNew();
+        var phases = new Phases(watch);
         if (request.WhatIf)
         {
             output.Info("What if mode is active. No changes will be made.");
         }
         var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
-        var endpoint = session.Endpoint(request.Environment);
+        var endpoint = session.Endpoint(request.Environment, announce: false);
         if (!endpoint.AllowWrite && !request.WhatIf && request.PlanOut is null)
         {
             throw new CliException(ReadOnlyEndpoint.Message(endpoint, "push to it"));
@@ -30,15 +31,20 @@ public static class PushRunner
         var includes = modules.SelectMany(m => m.Includes).ToList();
         var excluded = session.ExcludedFields(modules).ToHashSet();
         bool IncludeField(Guid id) => !excluded.Contains(id);
+        if (request.Announce)
+        {
+            output.Info($"Pushing to {SyncRunner.Describe(endpoint)}.");
+        }
 
         // Validation parses the files the Plan then uses, while the CM's metadata is fetched.
         var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
         var api = session.Serialization(endpoint);
         var cm = new CmItemTree(api, [.. excluded], endpoint.Name);
-        var prefetch = cm.PrefetchAsync(includes, ct, FileItemTree.CountFiles);
+        var prefetch = SyncRunner.ReadAsync(output, includes, [(cm, endpoint.Name)], FileItemTree.CountFiles, ct);
         var issues = request.SkipValidation ? [] : await Task.Run(() => FileValidator.Validate(includes, files), ct);
         if (issues.Count > 0)
         {
+            output.StopProgress();
             foreach (var issue in issues)
             {
                 output.Warn($"[{issue.Include.Module.Namespace}/{issue.Include.Name}] {issue.Kind}: {issue.Message}");
@@ -46,15 +52,19 @@ public static class PushRunner
             throw new CliException("Filesystem integrity validation found errors in serialized files! Use the validate command to fix these.");
         }
         await prefetch;
+        phases.End("read");
 
         var applier = new CmApplier(api, [.. excluded], session.Settings.WriteBatchSize, output.Info);
         var engine = new SyncEngine(files, cm, applier, PlanDirection.Push);
         var result = await engine.PlanAsync(includes, request.Force, ct);
-        SyncRunner.PrintPlan(output, result, endpoint.Name);
+        SyncRunner.PrintPlan(output, result, endpoint.Name, page: request.WhatIf || request.PlanOut is not null);
+        phases.End("compare");
         var exit = await SyncRunner.FinishAsync(session, request, engine, result, includes, "ser push", watch, ct);
+        phases.End("apply");
         var security = new SecuritySync(new SecurityApi(api.Client), session.Root);
         await SyncRunner.RunSecurityAsync(output, "roles", "role", () => security.PlanRolePushAsync(modules, ct), request, ct);
         await SyncRunner.RunSecurityAsync(output, "users", "user", () => security.PlanUserPushAsync(modules, ct), request, ct);
+        phases.End("roles and users");
 
         if (request.Publish && !request.WhatIf && request.PlanOut is null && !result.Plan.IsEmpty)
         {
@@ -62,7 +72,9 @@ public static class PushRunner
             var publishing = new PublishingApi(api.Client);
             var targets = request.PublishTargets.Count == 0 ? [null] : request.PublishTargets.Cast<string?>().ToList();
             await Task.WhenAll(targets.Select(t => PublishCommands.RunAndWaitAsync(publishing, output, () => publishing.PublishAsync(null, [], ids, false, t, ct), ct)));
+            phases.End("publish");
         }
+        SyncRunner.PrintElapsed(output, phases);
         return exit;
     }
 
@@ -70,8 +82,8 @@ public static class PushRunner
     {
         var output = session.Output;
         var watch = Stopwatch.StartNew();
-        var sourceEndpoint = session.Endpoint(request.Source);
-        var targetEndpoint = session.Endpoint(request.Destination);
+        var sourceEndpoint = session.Endpoint(request.Source, announce: false);
+        var targetEndpoint = session.Endpoint(request.Destination, announce: false);
         if (request.Push && !targetEndpoint.AllowWrite)
         {
             throw new CliException(ReadOnlyEndpoint.Message(targetEndpoint, "push to it"));
@@ -112,56 +124,27 @@ public static class PushRunner
         var targetApi = session.Serialization(targetEndpoint);
         var source = new CmItemTree(sourceApi, excluded, sourceEndpoint.Name);
         var target = new CmItemTree(targetApi, excluded, targetEndpoint.Name);
-        await ReadBothAsync(output, includes, (source, sourceEndpoint.Name), (target, targetEndpoint.Name), ct);
+        var phases = new Phases(watch);
+        if (request.Announce)
+        {
+            output.Info($"Comparing {SyncRunner.Describe(sourceEndpoint)} with {SyncRunner.Describe(targetEndpoint)}.");
+        }
+        output.Info($"Reading {includes.Count} include{(includes.Count == 1 ? string.Empty : "s")}...");
+        var sides = new List<(CmItemTree Tree, string Name)> { (source, sourceEndpoint.Name), (target, targetEndpoint.Name) };
+        var counts = await SyncRunner.ReadAsync(output, includes, sides, null, ct);
+        output.Info($"Read {counts[0]:N0} items from {sourceEndpoint.Name} and {counts[1]:N0} from {targetEndpoint.Name} in {watch.Elapsed.TotalSeconds:0.0} s.");
+        phases.End("read");
 
         var applier = new CmApplier(targetApi, excluded, session.Settings.WriteBatchSize, output.Info);
         var engine = new SyncEngine(source, target, applier, PlanDirection.Copy);
         output.Info("Comparing items...");
-        var compare = Stopwatch.StartNew();
         var result = await engine.PlanAsync(includes, force: true, ct);
-        if (compare.Elapsed >= TimeSpan.FromSeconds(1))
-        {
-            output.Info($"Compared in {compare.Elapsed.TotalSeconds:0.0} s.");
-        }
-        SyncRunner.PrintPlan(output, result, targetEndpoint.Name);
+        SyncRunner.PrintPlan(output, result, targetEndpoint.Name, page: !request.Push);
+        phases.End("compare");
         var syncRequest = new SyncRequest(null, request.Include, request.Exclude, WhatIf: !request.Push, false, true, request.PlanOut, false, []);
-        return await SyncRunner.FinishAsync(session, syncRequest, engine, result, includes, "ser diff", watch, ct);
-    }
-
-    /// <summary>
-    /// Reads every Include from both CMs at once, showing how far each side has got, then how many
-    /// items each returned. A large scope can take minutes, and without this nothing would show.
-    /// </summary>
-    private static async Task ReadBothAsync(Output output, List<Include> includes, (CmItemTree Tree, string Name) source, (CmItemTree Tree, string Name) target, CancellationToken ct)
-    {
-        var watch = Stopwatch.StartNew();
-        int sourceDone = 0, targetDone = 0, sourceItems = 0, targetItems = 0;
-        void Show() => output.Progress($"Reading: {source.Name} {Volatile.Read(ref sourceDone)}/{includes.Count} includes ({Volatile.Read(ref sourceItems):N0} items), {target.Name} {Volatile.Read(ref targetDone)}/{includes.Count} ({Volatile.Read(ref targetItems):N0} items), {watch.Elapsed.TotalSeconds:0} s");
-        source.Tree.Loaded = (_, count) =>
-        {
-            Interlocked.Add(ref sourceItems, count);
-            Interlocked.Increment(ref sourceDone);
-            Show();
-        };
-        target.Tree.Loaded = (_, count) =>
-        {
-            Interlocked.Add(ref targetItems, count);
-            Interlocked.Increment(ref targetDone);
-            Show();
-        };
-        output.Info($"Reading {includes.Count} include{(includes.Count == 1 ? string.Empty : "s")} from {source.Name} and {target.Name}...");
-        using var timer = new Timer(_ => Show(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-        try
-        {
-            await Task.WhenAll(source.Tree.PrefetchAsync(includes, ct), target.Tree.PrefetchAsync(includes, ct));
-        }
-        finally
-        {
-            await timer.DisposeAsync();
-            source.Tree.Loaded = null;
-            target.Tree.Loaded = null;
-            output.EndProgress();
-        }
-        output.Info($"Read {sourceItems:N0} items from {source.Name} and {targetItems:N0} from {target.Name} in {watch.Elapsed.TotalSeconds:0.0} s.");
+        var exit = await SyncRunner.FinishAsync(session, syncRequest, engine, result, includes, "ser diff", watch, ct);
+        phases.End("apply");
+        SyncRunner.PrintElapsed(output, phases);
+        return exit;
     }
 }

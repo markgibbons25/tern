@@ -40,6 +40,51 @@ These change the target as soon as they run and can't save a Plan. Run one only 
 
 An Endpoint without `allowWrite` refuses all of these, and `authoring query` refuses only a mutation, so reads still work. A refusal means the user marked the Endpoint read-only: report it, and never change the setting.
 
+`ser pull`, `ser push` and `ser watch` also refuse to run inside the repository's `.tern` folder. The message names the folder of `sitecore.json` to change to: run the command from there. To move content, use the `content` commands, which work from any folder in the repository.
+
+## Setting up a content migration
+
+When the user wants to copy content between environments (prod to uat, prod to local and so on), or has a content-sync script built on `ser pull` and `ser push`, the configuration goes in a `.tern` folder at the repository root, and is committed. Tern finds it from any folder in the repository, so the migration runs from anywhere, and its Modules are never part of `ser pull` or `ser push`, so a pulled copy of prod's content can't be pushed by mistake as if it were the project's items.
+
+```text
+.tern/
+  tern.json                       endpoints and settings
+  content-site-a.module.json      what the content commands copy
+  media-site-a.module.json
+  .env                            TERN_* credentials, gitignored
+  items/                          Item files a content sync pulls, gitignored unless the team reviews them in git
+```
+
+1. **Ask** which environments are involved, their CM hosts, which ones are production, and which content (sites, item paths) moves. Read hosts from existing scripts, an existing `tern.json` or `tern env list`; never copy anything but endpoint names and hosts out of `.sitecore/user.json`.
+2. **Write `.tern/tern.json`** with the environments. If the repository has a `tern.json` beside `sitecore.json`, move its contents here and delete it, since `.tern/tern.json` replaces it. Production gets `"allowWrite": false`; ask before marking anything writable you aren't sure is non-production. Endpoints reached with client credentials get `"useClientCredentials": true`:
+
+   ```json
+   {
+     "endpoints": {
+       "prod":  { "host": "https://<prod-cm>", "allowWrite": false, "useClientCredentials": true },
+       "uat":   { "host": "https://<uat-cm>",  "allowWrite": true,  "useClientCredentials": true },
+       "local": { "host": "https://xmcloudcm.localhost", "allowWrite": true }
+     }
+   }
+   ```
+
+   No client ID, secret or token goes in `tern.json`; Tern refuses them. They go in `.tern/.env` as `TERN_<ENDPOINT>_CLIENT_ID` and `TERN_<ENDPOINT>_CLIENT_SECRET` lines, which the user fills in.
+3. **Write one Module per site and kind of content** in `.tern`, named so the content and media Modules of a site differ only by `content` and `media` (`content-site-a.module.json`, `media-site-a.module.json`); then `-m site-a` takes both, media first. For example:
+
+   ```json
+   {
+     "namespace": "content-site-a",
+     "items": { "includes": [ { "name": "site-a", "path": "/sitecore/content/Tenant/Site A", "scope": "ItemAndDescendants" } ] }
+   }
+   ```
+
+   Their Item files go to `.tern/items/<include name>`. Never copy the project's serialization Modules here: their includes cover templates and renderings, which a content copy must not touch. Once `.tern` has a Module, the content commands use only the `.tern` Modules, so every site to be copied needs one here. Without `-m`, every `.tern` Module runs; where some are for one-off jobs (templates, roles, test pages), list the everyday ones in `tern.json` as `"modules": ["migration-media.module.json", "migration-content.module.json"]` so the rest run only when named with `-m`.
+4. **Gitignore** `.tern/.env` and `.tern/items/` (ask whether the team wants pulled content in git; if so, leave `items/` tracked), and `.sitecore/` if it isn't already.
+5. **Check the project's `sitecore.json`**: if its `modules` globs reach `.tern` (such as `**/*.module.json`), Tern leaves those Modules out with a warning, but the Sitecore CLI doesn't, so narrow the glob (for example to `src/**/*.module.json`).
+6. **Check**, from a folder other than the repository root: `tern env list` shows each endpoint marked `(tern.json)` with production `[read-only]`; `tern content diff -s <source> -d <target> -m <site> --json` names the `.tern` Modules in its scope and writes nothing; and `tern ser info` from the serialization project lists none of the `.tern` Modules.
+
+Then the jobs are `tern content diff`, `content sync` and `content transfer`, run as the table above says: preview first, and only against the target the user named.
+
 ## Starting a new project
 
 With no `sitecore.json` yet, `tern init` creates one in the current folder that picks up every `src/*/*.module.json`. Ask which items the user wants serialized, write a Module file for them, then check it with `tern ser info`.

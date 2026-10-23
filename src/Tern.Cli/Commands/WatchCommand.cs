@@ -26,6 +26,7 @@ public static class WatchCommand
         var cmd = new Command("watch", "Watch a Sitecore instance and pull changes as they happen") { environment, include, exclude, skipPull, allowFileChanges, interval };
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, async (session, token) =>
         {
+            TernFolder.Guard(session, "ser watch");
             var output = session.Output;
             var request = new SyncRequest(parse.GetValue(environment), parse.GetValue(include)!, parse.GetValue(exclude)!, false, false, false, null, false, []);
             if (!parse.GetValue(skipPull))
