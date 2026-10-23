@@ -1,6 +1,7 @@
 ---
 name: switch-to-tern
 description: Switch a Sitecore repository from the Sitecore CLI (sitecore.cli, `dotnet sitecore`) to Tern. Use when asked to switch, migrate or move a project to Tern, or to replace the Sitecore CLI.
+license: MIT
 ---
 
 # Switch a repository to Tern

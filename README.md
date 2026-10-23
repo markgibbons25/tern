@@ -112,6 +112,14 @@ install Tern.Cli, replace dotnet sitecore with tern, and prove nothing else chan
 Show me what you found before you change anything.
 ```
 
+### Add the agent skills
+
+```bash
+npx skills add markgibbons25/tern
+```
+
+This installs [tern](skills/tern/SKILL.md), for using Tern, and [switch-to-tern](skills/switch-to-tern/SKILL.md), for moving a repository off the Sitecore CLI, into Claude Code, Cursor, Codex and other agents ([skills.sh](https://skills.sh)).
+
 ### Install manually
 
 ```bash
