@@ -69,6 +69,9 @@ public sealed class Output(bool json, bool verbose, bool trace)
     /// <summary>Whether <see cref="Page"/> may use a pager; <c>--pager</c> turns it on.</summary>
     public bool UsePager { get; init; }
 
+    /// <summary>Whether to leave out the line for each changed item, role and user; <c>--quiet</c> turns it on.</summary>
+    public bool Quiet { get; init; }
+
     /// <summary>
     /// Progress lines, each with an optional colour. When <paramref name="allowPager"/> is set, both
     /// streams are a terminal and the lines don't fit on it, they go through the <see cref="Pager"/>.

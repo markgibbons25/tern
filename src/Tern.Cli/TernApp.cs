@@ -25,6 +25,7 @@ public static class TernApp
         root.Options.Add(CommonOptions.Json);
         root.Options.Add(CommonOptions.Record);
         root.Options.Add(CommonOptions.Pager);
+        root.Options.Add(CommonOptions.Quiet);
 
         root.Subcommands.Add(LoginCommands.Login());
         root.Subcommands.Add(LoginCommands.Connect());

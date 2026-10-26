@@ -134,3 +134,5 @@ What the numbers mean:
 | Runs `ser diff --push` between two logins | `content diff --push` |
 
 All three commands take `--json`. For sync and diff, stdout is one document with the Modules used and a `steps` array holding each pull, push or diff's own document; for transfer, it lists the data trees and each transfer's files and timings.
+
+For a large sync or diff, `--quiet` leaves out the line for each changed item, role and user. Each summary, the counts by action and by module, warnings, errors and timings still print, and `--json` still carries every operation.

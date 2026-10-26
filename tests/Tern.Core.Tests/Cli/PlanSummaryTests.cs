@@ -48,6 +48,22 @@ public class PlanSummaryTests
     }
 
     [Fact]
+    public void Quiet_leaves_out_each_operation_but_keeps_the_summary()
+    {
+        using var err = new StringWriter();
+        var output = new Output(json: false, verbose: false, trace: false) { Err = err, Colors = false, Quiet = true };
+        var include = new Tern.Core.Configuration.Include { Name = "x", Path = Tern.Core.Configuration.ItemPath.Parse("/sitecore/content"), Database = "master" };
+        var ops = new List<PlanOperation> { Op(PlanAction.Create, "a"), Op(PlanAction.Update, "b") };
+        var plan = new Plan { Direction = PlanDirection.Push, Source = "files", Target = "dev" };
+        plan.Operations.AddRange(ops);
+        SyncRunner.PrintPlan(output, new PlanResult(plan, [new IncludePlan(include, ops, 10)], 10), "dev");
+        var text = err.ToString();
+        Assert.DoesNotContain("/sitecore/content/x", text);
+        Assert.Contains("[master] Discovered 2 changes after evaluating 10 total items." + Environment.NewLine + "[master] 1 added, 1 updated" + Environment.NewLine, text);
+        Assert.Contains("Changes by module:", text);
+    }
+
+    [Fact]
     public void Phases_leave_out_steps_that_took_no_time()
     {
         var phases = new Phases(Stopwatch.StartNew());

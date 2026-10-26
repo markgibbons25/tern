@@ -77,12 +77,12 @@ public static class SyncRunner
     internal static async Task RunSecurityAsync(Output output, string label, string entity, Func<Task<List<SecurityChange>>> plan, SyncRequest request, CancellationToken ct)
     {
         var changes = await plan();
-        foreach (var change in changes)
+        if (changes.Count > 0 && !output.Quiet)
         {
-            output.Info(change.Message);
-        }
-        if (changes.Count > 0)
-        {
+            foreach (var change in changes)
+            {
+                output.Info(change.Message);
+            }
             output.Info(string.Empty);
         }
         output.Info($"[{label}] Discovered {changes.Count} changes after evaluating {entity} list.", SummaryColor);
@@ -139,7 +139,7 @@ public static class SyncRunner
     }
 
     /// <summary>
-    /// Prints each operation and each database's summary. With <paramref name="page"/>, set when
+    /// Prints each operation, unless <see cref="Output.Quiet"/>, and each database's summary. With <paramref name="page"/>, set when
     /// nothing is applied afterwards, a list taller than the terminal goes through a pager.
     /// </summary>
     internal static void PrintPlan(Output output, PlanResult result, string endpointName, bool page = false)
@@ -154,12 +154,12 @@ public static class SyncRunner
         {
             var db = group.Key;
             var ops = group.SelectMany(g => g.Operations).ToList();
-            foreach (var op in ops)
+            if (ops.Count > 0 && !output.Quiet)
             {
-                lines.Add(($"[{db}] {Describe(op)}", ColorOf(op.Action)));
-            }
-            if (ops.Count > 0)
-            {
+                foreach (var op in ops)
+                {
+                    lines.Add(($"[{db}] {Describe(op)}", ColorOf(op.Action)));
+                }
                 lines.Add((string.Empty, null));
             }
             lines.Add(($"[{db}] Discovered {ops.Count} changes after evaluating {group.Sum(g => g.NodesEvaluated)} total items.", SummaryColor));

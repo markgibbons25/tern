@@ -17,6 +17,7 @@ public static class CommonOptions
     public static readonly Option<bool> Json = new("--json") { Description = "Write one JSON document to stdout instead of human-readable output", Recursive = true };
     public static readonly Option<string?> Record = new("--record") { Description = "Write every request to the CM, with secrets removed, to this folder", Recursive = true };
     public static readonly Option<bool> Pager = new("--pager") { Description = "Show a list of changes taller than the terminal in a pager (less) instead of printing it", Recursive = true };
+    public static readonly Option<bool> Quiet = new("--quiet") { Description = "Leave out the line for each changed item, role and user; summaries, warnings and errors still print", Recursive = true };
 
     public static Option<string?> EnvironmentName() =>
         new("--environment-name", "-n") { Description = "Named Sitecore environment to use. If not specified, the environment that was set as default or 'default' will be resolved." };
@@ -30,7 +31,7 @@ public static class CommonOptions
     /// <summary>Runs a command body with a Session, turning known failures into clean messages and exit codes.</summary>
     public static async Task<int> RunAsync(ParseResult parse, Func<Session, CancellationToken, Task<int>> body, CancellationToken ct)
     {
-        var output = new Output(parse.GetValue(Json), parse.GetValue(Verbose), parse.GetValue(Trace)) { UsePager = parse.GetValue(Pager) };
+        var output = new Output(parse.GetValue(Json), parse.GetValue(Verbose), parse.GetValue(Trace)) { UsePager = parse.GetValue(Pager), Quiet = parse.GetValue(Quiet) };
         using var session = new Session(parse.GetValue(Config), output) { RecordDirectory = parse.GetValue(Record) };
         var watch = System.Diagnostics.Stopwatch.StartNew();
         try
