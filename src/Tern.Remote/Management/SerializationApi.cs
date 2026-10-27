@@ -36,9 +36,9 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
     public async Task<IReadOnlyDictionary<Guid, ItemData>> GetItemDataAsync(string database, IReadOnlyCollection<Guid> ids, IReadOnlyList<Guid> excludedFieldIds, CancellationToken ct)
     {
         var requests = ids.Select(id => new SerializeRequest(id.ToString("D"), database, TreeScope.SingleItem, excludedFieldIds)).ToList();
-        var results = await RunBatchesAsync(requests, metadata: false, e => ItemDataJson.Parse(e.GetProperty("data")), null, ct);
+        var results = await RunBatchesAsync(requests, metadata: false, ParseData, null, ct);
         var map = new Dictionary<Guid, ItemData>();
-        foreach (var item in results.SelectMany(r => r))
+        foreach (var item in results.SelectMany(r => r).OfType<ItemData>())
         {
             map[item.Id] = item;
         }
@@ -54,8 +54,15 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
     public Task StreamItemDataAsync(string database, IReadOnlyCollection<Guid> ids, IReadOnlyList<Guid> excludedFieldIds, Func<IReadOnlyList<ItemData>, Task> onBatch, CancellationToken ct)
     {
         var requests = ids.Select(id => new SerializeRequest(id.ToString("D"), database, TreeScope.SingleItem, excludedFieldIds)).ToList();
-        return RunBatchesAsync(requests, metadata: false, e => ItemDataJson.Parse(e.GetProperty("data")), lists => onBatch(lists.SelectMany(l => l).ToList()), ct);
+        return RunBatchesAsync(requests, metadata: false, ParseData, lists => onBatch(lists.SelectMany(l => l).OfType<ItemData>().ToList()), ct);
     }
+
+    /// <summary>
+    /// The item in a <c>serialize { data }</c> entry, or null when the server sent <c>data: null</c>
+    /// (an item it listed but could not read). Callers report such an item as not fetched.
+    /// </summary>
+    internal static ItemData? ParseData(JsonElement e) =>
+        e.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? ItemDataJson.Parse(data) : null;
 
     public async Task<string> GetHistoryTimestampAsync(CancellationToken ct)
     {

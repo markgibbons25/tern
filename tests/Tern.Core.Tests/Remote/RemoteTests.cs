@@ -93,6 +93,26 @@ public class UpdatePayloadTests
     }
 }
 
+public class SerializeDataTests
+{
+    [Fact]
+    public void An_entry_with_null_data_is_not_an_item()
+    {
+        using var doc = JsonDocument.Parse("""{ "data": null }""");
+        Assert.Null(SerializationApi.ParseData(doc.RootElement));
+    }
+
+    [Fact]
+    public void An_entry_with_data_is_parsed()
+    {
+        using var doc = JsonDocument.Parse("""
+            { "data": { "id": "11111111-1111-1111-1111-111111111111", "parentId": "22222222-2222-2222-2222-222222222222",
+                        "templateId": "76036f5e-cbce-46d1-af0a-4143f9b557aa", "path": "/sitecore/content/x" } }
+            """);
+        Assert.Equal("/sitecore/content/x", SerializationApi.ParseData(doc.RootElement)!.Path);
+    }
+}
+
 public class SpeTokenTests
 {
     [Fact]

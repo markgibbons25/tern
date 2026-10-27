@@ -117,7 +117,37 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         // An item that moved is not an orphan where it used to be.
         var moved = operations.Where(o => o.Action == PlanAction.Move).Select(o => o.Id).ToHashSet();
         deletes.RemoveAll(d => moved.Contains(d.Id));
+        operations = RecreateBelowReplaced(include, sourceItems, index, operations, deletes);
         return new IncludePlan(include, Order(operations, Distinct(deletes)), nodes);
+    }
+
+    /// <summary>
+    /// A delete that clears a path for a create (D10) runs first and takes the target item's whole
+    /// subtree with it. So every source item whose target sits below it is created again rather than
+    /// moved, renamed or updated, and deletes below it are dropped, since there is nothing left to delete.
+    /// </summary>
+    private static List<PlanOperation> RecreateBelowReplaced(Include include, List<ItemMetadata> sourceItems, TargetIndex index, List<PlanOperation> operations, List<PlanOperation> deletes)
+    {
+        var createPaths = operations.Where(o => o.Action == PlanAction.Create).Select(o => ItemPath.Parse(o.Path)).ToHashSet();
+        var replaced = deletes.Select(d => ItemPath.Parse(d.TargetPath ?? d.Path)).Where(createPaths.Contains).Distinct().ToList();
+        if (replaced.Count == 0)
+        {
+            return operations;
+        }
+        bool Below(ItemPath path) => replaced.Any(r => !path.Equals(r) && path.IsDescendantOrSelfOf(r));
+        deletes.RemoveAll(d => Below(ItemPath.Parse(d.TargetPath ?? d.Path)));
+        var recreate = sourceItems.Where(s => index.ById(s.Id) is { } t && Below(t.ItemPath)).ToList();
+        if (recreate.Count == 0)
+        {
+            return operations;
+        }
+        var ids = recreate.Select(s => s.Id).ToHashSet();
+        var kept = operations.Where(o => !ids.Contains(o.Id)).ToList();
+        // Parents before children: the walk's creates already go level by level, and the stable sort keeps their order.
+        var creates = kept.Where(o => o.Action == PlanAction.Create)
+            .Concat(recreate.Select(s => Op(PlanAction.Create, include, s, null)))
+            .OrderBy(o => ItemPath.Parse(o.Path).Count);
+        return [.. creates, .. kept.Where(o => o.Action != PlanAction.Create)];
     }
 
     /// <summary>

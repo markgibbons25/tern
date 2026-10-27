@@ -114,6 +114,20 @@ public class PlannerTests
         Assert.Equal([G(9), G(2)], ops.Select(o => o.Id));
     }
 
+    [Fact]
+    public async Task Recreates_the_children_of_a_target_item_replaced_at_the_same_path()
+    {
+        // The replaced item's delete takes its children with it, so moving one under the new parent
+        // would fail with "did not exist", and deleting its orphan would delete something already gone.
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Page"), M(3, 2, "/sitecore/content/Site/Page/Child"), M(4, 3, "/sitecore/content/Site/Page/Child/Grandchild")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(9, 1, "/sitecore/content/Site/Page"), M(3, 9, "/sitecore/content/Site/Page/Child"), M(4, 3, "/sitecore/content/Site/Page/Child/Grandchild"), M(8, 9, "/sitecore/content/Site/Page/Orphan")]);
+        var ops = await Plan(source, target, Include(), push: true);
+        Assert.Equal(
+            ["Delete /sitecore/content/Site/Page", "Create /sitecore/content/Site/Page", "Create /sitecore/content/Site/Page/Child", "Create /sitecore/content/Site/Page/Child/Grandchild"],
+            ops.Select(o => o.ToString()));
+        Assert.Equal([G(9), G(2), G(3), G(4)], ops.Select(o => o.Id));
+    }
+
     private static async Task<List<PlanOperation>> PlanItems(MemoryTree source, MemoryTree target, Include include, int[] ids, params int[] subtrees)
     {
         var planner = new Planner(source, target, applyPushOperations: false, force: true);

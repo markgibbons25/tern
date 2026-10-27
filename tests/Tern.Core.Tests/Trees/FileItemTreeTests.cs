@@ -107,6 +107,22 @@ public sealed class FileItemTreeTests : IDisposable
     }
 
     [Fact]
+    public void Deviation_D12_an_item_the_source_returns_no_data_for_is_skipped_and_the_rest_written()
+    {
+        var root = Item(1, 0, "/sitecore/content/Site", "Root");
+        var unreadable = Item(2, 1, "/sitecore/content/Site/Video", "Video");
+        var files = new FileItemTree(IncludeField, index: Index());
+        var ops = new[] { root, unreadable }.Select(i => new PlanOperation { Action = PlanAction.Create, Module = "Test", Include = "test", Database = "master", Id = i.Id, Path = i.Path, ParentId = i.ParentId }).ToList();
+
+        // Only the root's data is there, as when the CM answers the video's serialize with data: null.
+        var applied = new FileApplier(files, IncludeField).Apply(_include, ops, new Dictionary<Guid, ItemData> { [root.Id] = root }, checkPreconditions: false);
+
+        Assert.Null(applied.Single(a => a.Operation.Id == root.Id).Skipped);
+        Assert.Contains("/sitecore/content/Site/Video", applied.Single(a => a.Operation.Id == unreadable.Id).Skipped);
+        Assert.Equal(["/sitecore/content/Site"], new FileItemTree(IncludeField).Files(_include).Select(f => f.Path));
+    }
+
+    [Fact]
     public void A_damaged_index_is_ignored()
     {
         Pull(Item(1, 0, "/sitecore/content/Site", "Root"));

@@ -117,6 +117,10 @@ public static class SyncRunner
                 output.Info($"[{db}] Applying changes...");
             }
             applied = await engine.ApplyAsync(result.Plan, includes, checkPreconditions: false, ct);
+            foreach (var skipped in applied.Where(a => a.Skipped is not null))
+            {
+                output.Warn($"[{skipped.Operation.Database}] {skipped.Skipped}");
+            }
             foreach (var group in result.Plan.Operations.GroupBy(o => o.Database, StringComparer.OrdinalIgnoreCase))
             {
                 var subtrees = group.Select(o => (o.Module, o.Include)).Distinct().Count();
@@ -130,7 +134,8 @@ public static class SyncRunner
             w.WriteBoolean("whatIf", request.WhatIf || request.PlanOut is not null);
             w.WriteNumber("itemsEvaluated", result.NodesEvaluated);
             w.WriteNumber("changes", result.Plan.Operations.Count);
-            w.WriteNumber("applied", applied.Count);
+            w.WriteNumber("applied", applied.Count(a => a.Skipped is null));
+            w.WriteNumber("skipped", applied.Count(a => a.Skipped is not null));
             w.WriteNumber("elapsedMs", watch.ElapsedMilliseconds);
             w.WritePropertyName("plan");
             PlanJson.Write(w, result.Plan);
