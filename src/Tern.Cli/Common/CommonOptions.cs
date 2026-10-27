@@ -34,6 +34,7 @@ public static class CommonOptions
         var output = new Output(parse.GetValue(Json), parse.GetValue(Verbose), parse.GetValue(Trace)) { UsePager = parse.GetValue(Pager), Quiet = parse.GetValue(Quiet) };
         using var session = new Session(parse.GetValue(Config), output) { RecordDirectory = parse.GetValue(Record) };
         var watch = System.Diagnostics.Stopwatch.StartNew();
+        var updateCheck = UpdateCheck.Start(output);
         try
         {
             var exit = await body(session, ct);
@@ -72,6 +73,13 @@ public static class CommonOptions
         {
             output.Error($"Could not reach the server: {ex.Message}");
             return ExitCodes.Failure;
+        }
+        finally
+        {
+            if (updateCheck is not null)
+            {
+                await updateCheck.ReportAsync(output);
+            }
         }
     }
 }

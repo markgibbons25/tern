@@ -58,16 +58,23 @@ public static class TernApp
         return root;
     }
 
+    /// <summary>Tern's own version, without the commit hash.</summary>
+    public static string Version
+    {
+        get
+        {
+            var informational = typeof(TernApp).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+            var plus = informational.IndexOf('+');
+            return plus < 0 ? informational : informational[..plus];
+        }
+    }
+
     public static string VersionText
     {
         get
         {
-            var assembly = typeof(TernApp).Assembly;
-            var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
-            var plus = informational.IndexOf('+');
-            var ternVersion = plus < 0 ? informational : informational[..plus];
-            var line = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "OfficialCliLine")?.Value ?? "?";
-            return $"tern {ternVersion} (drop-in for Sitecore CLI {line})";
+            var line = typeof(TernApp).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "OfficialCliLine")?.Value ?? "?";
+            return $"tern {Version} (drop-in for Sitecore CLI {line})";
         }
     }
 }

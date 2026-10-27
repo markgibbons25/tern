@@ -145,6 +145,8 @@ tern --version
 
 Add `--version <version>` to move to a particular release, and `--allow-downgrade` as well if it is older than the one installed. Where CI installs a pinned version, change the version there too.
 
+Once a day, while a command runs, Tern asks NuGet for the latest version and, if it is newer, says so in one dim line when the command ends. Nothing waits on it and a failure is ignored. It stays quiet with `--json`, when output is redirected, when `CI` is set, and when `TERN_NO_UPDATE_CHECK=1`.
+
 ### Start without a sitecore.json
 
 If the repository has never used the Sitecore CLI, install Tern manually as above, then create the configuration from the repository root:
