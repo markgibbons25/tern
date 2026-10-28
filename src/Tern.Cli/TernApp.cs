@@ -44,7 +44,7 @@ public static class TernApp
         root.Subcommands.Add(ScriptCommands.Authoring());
         root.Subcommands.Add(CloudCommands.Build());
 
-        root.SetAction(parse =>
+        root.SetAction(async (parse, ct) =>
         {
             if (parse.GetValue(version))
             {
@@ -53,6 +53,12 @@ public static class TernApp
             }
             Console.Out.WriteLine(VersionText);
             Console.Out.WriteLine("Run `tern --help` to see the commands.");
+            // --version stays instant for scripts; plain `tern` is run by a person, so it checks for updates.
+            var output = new Output(parse.GetValue(CommonOptions.Json), verbose: false, trace: false);
+            if (UpdateCheck.Start(output) is { } updateCheck)
+            {
+                await updateCheck.ReportAsync(output);
+            }
             return ExitCodes.Success;
         });
         return root;

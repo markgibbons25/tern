@@ -4,8 +4,8 @@ using System.Text.Json;
 namespace Tern.Cli.Common;
 
 /// <summary>
-/// Tells the user when NuGet has a newer Tern. NuGet is asked at most once a day, in the background
-/// while the command runs, and any failure is ignored, so no command waits on it or fails because
+/// Tells the user when NuGet has a newer Tern, after a command or when <c>tern</c> runs with none.
+/// NuGet is asked at most once a day, in the background while the command runs, and any failure is ignored, so no command waits on it or fails because
 /// of it. It stays quiet for <c>--json</c>, redirected output, CI, and <c>TERN_NO_UPDATE_CHECK</c>.
 /// </summary>
 public sealed class UpdateCheck
@@ -46,7 +46,7 @@ public sealed class UpdateCheck
         return new UpdateCheck(current, Task.Run(() => FetchLatestAsync(current)));
     }
 
-    /// <summary>Prints one line when a newer version is known by now; never throws.</summary>
+    /// <summary>Prints the notice, set off by a blank line, when a newer version is known by now; never throws.</summary>
     public async Task ReportAsync(Output output)
     {
         try
@@ -57,7 +57,9 @@ public sealed class UpdateCheck
             }
             if (IsNewer(latest, _current))
             {
-                output.Info($"Tern {latest} is available (you have {_current}): dotnet tool update --global Tern.Cli", Output.Dim);
+                output.Info(string.Empty);
+                output.Info($"Tern {latest} is available (you have {_current}).", "1;33");
+                output.Info($"Update with: {output.Paint(Output.ReadColor, "dotnet tool update --global Tern.Cli")}");
             }
         }
         catch (Exception)
