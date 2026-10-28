@@ -2,7 +2,7 @@
 
 Each milestone is finished only when its commands pass the differential tests against the Official CLI and are no slower on any benchmark ([ADR 0003](adr/0003-drop-in-proven-against-the-official-cli.md)).
 
-Versions stay at `0.1.x`, and finishing a milestone does not bump them. Moving past `0.1` is a separate, deliberate decision. `tern --version` prints Tern's version.
+Tern is at `1.0`. Finishing a milestone does not bump the version; each release does. `tern --version` prints Tern's version.
 
 | | |
 |---|---|
