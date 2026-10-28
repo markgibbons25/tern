@@ -15,15 +15,16 @@ Tern is named after the Arctic tern, a small, fast seabird that makes the longes
 
 ### It's much faster
 
-Measured against Sitecore CLI 7 on the same project and the same CM ([details](#performance)):
+Measured against the Sitecore CLI on the same project and the same CM ([details](#performance)):
 
-| | Sitecore CLI 7 | Tern | |
+| | Sitecore CLI | Tern | |
 |---|---|---|---|
-| `ser pull --what-if`, whole project, SitecoreAI | 18.9 s | **1.1 s** | 17× faster |
-| `ser push --what-if`, whole project, SitecoreAI | 14.3 s | **1.1 s** | 13× faster |
+| `ser pull --what-if` | 18.9 s | **1.1 s** | 17× faster |
+| `ser push --what-if` | 14.3 s | **1.1 s** | 13× faster |
+| `ser push`, 5 changes | 12.5 s | **2.7 s** | 4.6× faster |
+| `ser pull`, 5 changes | 10.1 s | **1.5 s** | 6.7× faster |
 | `ser validate`, whole project | 5.0 s | **0.13 s** | 38× faster |
-| Full push, nothing to change, SitecoreAI | 3.9 s | **0.4 s** | 10× faster |
-| Pull 1,000 items, SitecoreAI | 2.6 s | **1.2 s** | 2× faster |
+
 
 And for bulk copies between environments, `content transfer` put 10,000 new items into a SitecoreAI environment in 7.6 s, ready to use ([more](#first-class-support-for-syncing-and-moving-content-between-environments)).
 
@@ -196,6 +197,18 @@ Tern's own settings go in `.tern/tern.json`, in a `.tern` folder at the reposito
 
 An endpoint marked read-only there stays read-only, whatever a local login says. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, from a gitignored `.tern/.env`, or from `tern login`. The modules the `content` commands copy between environments go in `.tern` too, and are committed ([the `.tern` folder](docs/settings.md#the-tern-folder)). Settings can also go in `~/.config/tern/settings.json` or `TERN_*` environment variables, which win. See [settings](docs/settings.md) for every option.
 
+### On-prem XM and XP
+
+Tern talks to an on-prem CM the same way as to SitecoreAI, with three things to set up:
+
+- **Management Services** must be installed on the CM, as for the Sitecore CLI. In a container image, copy it in *before* Headless Services: both ship `Sitecore.Services.GraphQL*.dll`, and Management Services' older copies, copied last, downgrade Headless Services.
+- **Every endpoint needs `authority`** set to the customer's Identity Server (`--authority` on `tern login`, or `"authority"` in `tern.json`), since it defaults to SitecoreAI's.
+- **Client credentials** need a `client_credentials` client on Identity Server, and on the CM a `Sitecore.Owin.Authentication` claim transformation that maps that client to an admin user, as the Sitecore CLI's non-interactive login does.
+
+```bash
+tern login --authority https://<identity-server> --cm https://<cm> --allow-write true --client-credentials true --client-id <id> --client-secret <secret>
+```
+
 ### Read content without serializing it
 
 ```bash
@@ -287,7 +300,7 @@ The settings behind these numbers, and what changes them, are in [docs/settings.
 
 ## Compatibility
 
-- **Platforms.** Tern follows the Sitecore CLI line Sitecore currently supports: Management Services 5.1.25 and later, on SitecoreAI and XM/XP 10.1–10.4. It is tested on SitecoreAI and on local SitecoreAI containers; testing on on-prem XM 10.4 is still to come ([roadmap](docs/roadmap.md)).
+- **Platforms.** Tern follows the Sitecore CLI line Sitecore currently supports: Management Services 5.1.25 and later, on SitecoreAI and XM/XP 10.1–10.4. It is tested on SitecoreAI, on local SitecoreAI containers, and on on-prem XP.
 - **Proven against the Sitecore CLI.** A milestone counts as finished only when its commands give the same results as the Sitecore CLI in the differential tests and are no slower on any benchmark.
 - **Runs everywhere.** Native builds for Windows, Linux and macOS, on x64 and Arm64.
 

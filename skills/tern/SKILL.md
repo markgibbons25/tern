@@ -66,12 +66,13 @@ When the user wants to copy content between environments (prod to uat, prod to l
      "endpoints": {
        "prod":  { "host": "https://<prod-cm>", "allowWrite": false, "useClientCredentials": true },
        "uat":   { "host": "https://<uat-cm>",  "allowWrite": true,  "useClientCredentials": true },
-       "local": { "host": "https://xmcloudcm.localhost", "allowWrite": true }
+       "local": { "host": "https://xmcloudcm.localhost", "allowWrite": true },
+       "xp-uat": { "host": "https://<xp-uat-cm>", "authority": "https://<identity-server>", "allowWrite": true, "useClientCredentials": true }
      }
    }
    ```
 
-   No client ID, secret or token goes in `tern.json`; Tern refuses them. They go in `.tern/.env` as `TERN_<ENDPOINT>_CLIENT_ID` and `TERN_<ENDPOINT>_CLIENT_SECRET` lines, which the user fills in.
+   `authority` defaults to SitecoreAI's, so every XM or XP endpoint needs it set to the customer's Identity Server; ask for its URL. No client ID, secret or token goes in `tern.json`; Tern refuses them. They go in `.tern/.env` as `TERN_<ENDPOINT>_CLIENT_ID` and `TERN_<ENDPOINT>_CLIENT_SECRET` lines, which the user fills in.
 3. **Write one Module per site and kind of content** in `.tern`, named so the content and media Modules of a site differ only by `content` and `media` (`content-site-a.module.json`, `media-site-a.module.json`); then `-m site-a` takes both, media first. For example:
 
    ```json

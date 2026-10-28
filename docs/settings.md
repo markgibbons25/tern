@@ -24,7 +24,7 @@ The project's `tern.json` can also list the team's endpoints, so nobody has to a
 }
 ```
 
-Each endpoint takes `host` (required), `authority`, `audience`, `allowWrite` and `useClientCredentials`, and nothing else: a client ID, secret or token is refused, since the file is committed. Authority and audience default to SitecoreAI's. Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, as variables or in a gitignored `.tern/.env` (or a `.env` beside `sitecore.json`), or from `tern login`.
+Each endpoint takes `host` (required), `authority`, `audience`, `allowWrite` and `useClientCredentials`, and nothing else: a client ID, secret or token is refused, since the file is committed. Authority and audience default to SitecoreAI's, so on XM and XP every endpoint needs `authority` set to the customer's Identity Server, such as `"authority": "https://<identity-server>"` ([on-prem setup](../README.md#on-prem-xm-and-xp)). Credentials come from `TERN_CLIENT_ID` and `TERN_CLIENT_SECRET`, as variables or in a gitignored `.tern/.env` (or a `.env` beside `sitecore.json`), or from `tern login`.
 
 `tern.json` wins over `user.json` for where an endpoint is, `user.json` keeps the tokens, and `allowWrite` is the stricter of the two. `tern env list` marks these endpoints `(tern.json)`.
 

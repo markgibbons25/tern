@@ -55,7 +55,7 @@ public static class CommonOptions
             output.Error(ex.Message);
             return ExitCodes.PlanOutOfDate;
         }
-        catch (Exception ex) when (ex is ConfigurationException or ItemFileFormatException or ManagementException or AuthenticationException or SourceMissingException or NonUniquePathException or InvalidDataException or Tern.Remote.Cloud.CloudApiException or DirectoryNotFoundException)
+        catch (Exception ex) when (ex is ConfigurationException or ItemFileFormatException or ManagementException or AuthenticationException or SourceMissingException or NonUniquePathException or InvalidDataException or Tern.Remote.Cloud.CloudApiException or DirectoryNotFoundException or FileNotFoundException)
         {
             output.Error(ex.Message);
             if (output.Trace)
