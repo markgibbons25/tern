@@ -1,0 +1,23 @@
+name: Dependency review
+
+# Fails a pull request that adds a NuGet package or action with a known vulnerability of high
+# severity or worse.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

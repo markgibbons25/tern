@@ -4,7 +4,8 @@ name: Release
 # Native AOT can't cross-compile between operating systems, so each RID package is built on a
 # matching runner; the top-level package only points at them, so it is packed once.
 #
-# Pushing a v* tag publishes. A manual run packs and verifies, and publishes only when asked.
+# Pushing a v* tag publishes to nuget.org and creates the GitHub Release, with a standalone binary
+# for each RID. A manual run packs and verifies, and publishes or makes the release only when asked.
 # nuget.org accepts the push through Trusted Publishing: the job trades its GitHub OIDC token for
 # a short-lived API key, so no NuGet key is stored in the repository.
 
@@ -15,6 +16,10 @@ on:
     inputs:
       publish:
         description: Push the packages to nuget.org
+        type: boolean
+        default: false
+      github-release:
+        description: Create the GitHub Release for the version's existing tag
         type: boolean
         default: false
 
@@ -75,6 +80,30 @@ jobs:
         with:
           name: nupkg-${{ matrix.rid }}
           path: artifacts/nupkg/*.nupkg
+          if-no-files-found: error
+
+      # The standalone binary for the GitHub Release: just the executable, without debug symbols.
+      - name: Publish the standalone binary (${{ matrix.rid }})
+        run: dotnet publish src/Tern.Cli -c Release -r ${{ matrix.rid }} -o artifacts/bin
+
+      - name: Archive the binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          Compress-Archive -Path artifacts/bin/tern.exe -DestinationPath "artifacts/release/tern-${{ needs.version.outputs.version }}-${{ matrix.rid }}.zip"
+
+      - name: Archive the binary
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          tar -czf "artifacts/release/tern-${{ needs.version.outputs.version }}-${{ matrix.rid }}.tar.gz" -C artifacts/bin tern
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.rid }}
+          path: artifacts/release/*
           if-no-files-found: error
 
   pack:
@@ -162,3 +191,38 @@ jobs:
           for f in nupkg/Tern.Cli.[0-9]*.nupkg; do
             dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
           done
+
+  # A GitHub Release for the tag, with notes generated from the commits since the last one and a
+  # standalone binary for each RID. A manual run makes one only when asked, for a tag that already
+  # exists (such as a release from before this job).
+  github-release:
+    needs: [version, pack, publish]
+    # Runs after a publish, or without one on a manual run that only asks for the release.
+    if: >-
+      always() && needs.pack.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.publish.result)
+      && (github.event_name == 'push' || inputs.github-release)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: binary-*
+          path: release
+          merge-multiple: true
+
+      - name: Write checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --verify-tag --title "Tern ${TAG#v}" --generate-notes
+          fi

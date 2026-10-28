@@ -1,0 +1,46 @@
+name: CodeQL
+
+# GitHub's code scanning: the C# code and the workflows themselves, on every push and pull request
+# to main and once a week, so new queries catch issues in code that hasn't changed. Findings show
+# under Security > Code scanning.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, actions]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        if: matrix.language == 'csharp'
+        with:
+          global-json-file: global.json
+
+      # Build mode none reads the source without building it, so Native AOT and the analyzers
+      # don't need to run here; CI already builds every commit.
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

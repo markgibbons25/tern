@@ -1,0 +1,20 @@
+version: 2
+
+# Weekly pull requests for outdated NuGet packages and actions, grouped so each ecosystem is one
+# pull request. Security updates for vulnerable packages come as they're found, separately.
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ['*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
