@@ -69,4 +69,12 @@ public class ConfigurationTests
     [InlineData("Global", "Other", false)]
     public void Matches_module_filters_case_insensitively(string ns, string pattern, bool expected) =>
         Assert.Equal(expected, Wildcard.IsMatch(ns, pattern));
+
+    [Theory]
+    [InlineData("*{62DD1639-9F28-4040-8738-C886480B2127}*", true)]
+    [InlineData("<r*/r>", true)]
+    [InlineData("<r>?  <d />*", true)]
+    [InlineData("*{00000000-0000-0000-0000-000000000000}*", false)]
+    public void Matches_a_multi_line_value(string pattern, bool expected) =>
+        Assert.Equal(expected, Wildcard.IsMatch("<r>\n  <d />\n  <r s:id=\"{62DD1639-9F28-4040-8738-C886480B2127}\" />\n</r>", pattern));
 }

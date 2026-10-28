@@ -4,7 +4,11 @@
 
 - Tests: `dotnet test Tern.slnx`
 - Native AOT exe (Windows): `dotnet publish src/Tern.Cli -c Release -r win-x64 -o artifacts/tern` writes `artifacts/tern/tern.exe` (`artifacts/` is git-ignored).
-- Keep `artifacts/tern/tern.exe` up to date: republish it after every change under `src/` once the tests pass, before reporting the work done. Other repositories (such as ucq-sitecore-web) run that exe, so a stale one tests old behaviour.
+- Keep `artifacts/tern/tern.exe` up to date: republish it after every change under `src/` once the tests pass, before reporting the work done. Other repositories run that exe, so a stale one tests old behaviour.
+
+## No client-specific wording
+
+Tern is a public, general-purpose tool. Nothing committed here (code, comments, tests, test data, docs, commit messages) may name or hint at a client, their sites, environments, hosts, people, item paths or content, even when the work came from a client's repository. Describe the problem in generic Sitecore terms instead, and use made-up names (`Site A`, `/sitecore/content/Tenant/Site`) or Sitecore's own well-known IDs in tests. Check the diff for client wording before every commit.
 
 ## Native AOT linker on Windows
 
