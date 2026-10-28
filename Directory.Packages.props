@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.14" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 </Project>
