@@ -21,7 +21,7 @@ public static class SyncRunner
         var phases = new Phases(watch);
         if (request.WhatIf)
         {
-            output.Info("What if mode is active. No changes will be made.");
+            output.Info("What if mode is active. No changes will be made.", SummaryColor);
         }
         var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
         var endpoint = session.Endpoint(request.Environment, announce: false);
@@ -30,7 +30,7 @@ public static class SyncRunner
         bool IncludeField(Guid id) => !excluded.Contains(id);
         if (request.Announce)
         {
-            output.Info($"Pulling from {Describe(endpoint)}.");
+            output.Info($"Pulling from {output.PaintEndpoint(endpoint.Name, endpoint.Host)}.");
         }
 
         var files = new FileItemTree(IncludeField, index: session.FileIndex(excluded));
@@ -213,9 +213,6 @@ public static class SyncRunner
 
     /// <summary>The colour of secondary lines: counts, timings.</summary>
     internal const string DimColor = Output.Dim;
-
-    /// <summary>"dev (https://xmc-….sitecorecloud.io)", or just the name when it has no host.</summary>
-    internal static string Describe(Tern.Remote.Login.Endpoint endpoint) => endpoint.Host is { } host ? $"{endpoint.Name} ({host})" : endpoint.Name;
 
     /// <summary>
     /// Reads every Include from one or more CMs at once, showing how far each has got. A large scope

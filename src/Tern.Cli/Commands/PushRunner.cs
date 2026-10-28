@@ -20,7 +20,7 @@ public static class PushRunner
         var phases = new Phases(watch);
         if (request.WhatIf)
         {
-            output.Info("What if mode is active. No changes will be made.");
+            output.Info("What if mode is active. No changes will be made.", SyncRunner.SummaryColor);
         }
         var modules = request.Modules ?? session.SelectModules(request.Include, request.Exclude);
         var endpoint = session.Endpoint(request.Environment, announce: false);
@@ -33,7 +33,8 @@ public static class PushRunner
         bool IncludeField(Guid id) => !excluded.Contains(id);
         if (request.Announce)
         {
-            output.Info($"Pushing to {SyncRunner.Describe(endpoint)}.");
+            var writes = !request.WhatIf && request.PlanOut is null;
+            output.Info($"Pushing to {output.PaintEndpoint(endpoint.Name, endpoint.Host, writes ? Output.WriteColor : Output.ReadColor)}.");
         }
 
         // Validation parses the files the Plan then uses, while the CM's metadata is fetched.
@@ -127,7 +128,7 @@ public static class PushRunner
         var phases = new Phases(watch);
         if (request.Announce)
         {
-            output.Info($"Comparing {SyncRunner.Describe(sourceEndpoint)} with {SyncRunner.Describe(targetEndpoint)}.");
+            output.Info($"Comparing {output.PaintEndpoint(sourceEndpoint.Name, sourceEndpoint.Host)} with {output.PaintEndpoint(targetEndpoint.Name, targetEndpoint.Host, request.Push ? Output.WriteColor : Output.ReadColor)}.");
         }
         output.Info($"Reading {includes.Count} include{(includes.Count == 1 ? string.Empty : "s")}...");
         var sides = new List<(CmItemTree Tree, string Name)> { (source, sourceEndpoint.Name), (target, targetEndpoint.Name) };
