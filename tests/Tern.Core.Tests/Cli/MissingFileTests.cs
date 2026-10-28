@@ -7,7 +7,7 @@ namespace Tern.Core.Tests.Cli;
 [Collection(nameof(ConsoleTests))]
 public class MissingFileTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-missing-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-missing-{Guid.NewGuid():N}");
 
     public MissingFileTests() => Directory.CreateDirectory(_root);
 
@@ -41,7 +41,7 @@ public class MissingFileTests : IDisposable
     [InlineData("--json")]
     public async Task Apply_with_a_missing_Plan(params string[] options)
     {
-        var plan = Path.Combine(_root, "missing.plan.json");
+        var plan = Path.Join(_root, "missing.plan.json");
         var (code, output, error) = await Run(["apply", plan, .. options]);
         Assert.Equal(1, code);
         Assert.Equal("", output);

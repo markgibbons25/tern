@@ -150,7 +150,7 @@ public sealed class Session : IDisposable
     /// <c>.tern</c> folder's parent), or else in the config folder.
     /// </summary>
     public string StorePath => ProjectRoot?.UserConfigurationPath
-        ?? Path.Combine(TernFolder is { } tern ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(tern))! : ConfigDirectory, ".sitecore", "user.json");
+        ?? Path.Join(TernFolder is { } tern ? Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(tern))! : ConfigDirectory, ".sitecore", "user.json");
 
     /// <summary>
     /// The named Endpoint, or the default one. With <paramref name="announce"/>, the first time a

@@ -20,7 +20,7 @@ public static class ConfigurationLoader
         var dir = new DirectoryInfo(Path.GetFullPath(startDirectory));
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "sitecore.json");
+            var candidate = Path.Join(dir.FullName, "sitecore.json");
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -128,12 +128,12 @@ public static class ConfigurationLoader
         var module = new Module
         {
             Namespace = ns,
-            SourcePath = Path.Combine(directory, ns + ".module.json"),
+            SourcePath = Path.Join(directory, ns + ".module.json"),
             Includes = [include],
             SecurityRoot = directory,
         };
         include.Module = module;
-        include.PhysicalRoot = Path.Combine(directory, name);
+        include.PhysicalRoot = Path.Join(directory, name);
         include.Validate();
         return module;
     }
@@ -216,16 +216,13 @@ public static class ConfigurationLoader
             var unmatched = new HashSet<string>(module.References, StringComparer.OrdinalIgnoreCase);
             foreach (var candidate in modules)
             {
-                foreach (var reference in module.References)
+                foreach (var reference in module.References.Where(r => Wildcard.IsMatch(candidate.Namespace, r)))
                 {
-                    if (Wildcard.IsMatch(candidate.Namespace, reference))
+                    if (!deps.Contains(candidate))
                     {
-                        if (!deps.Contains(candidate))
-                        {
-                            deps.Add(candidate);
-                        }
-                        unmatched.Remove(reference);
+                        deps.Add(candidate);
                     }
+                    unmatched.Remove(reference);
                 }
             }
             if (unmatched.Count > 0)
@@ -335,7 +332,7 @@ public static class ConfigurationLoader
     }
 
     private static ReadOnlyMemory<byte> TrimUtf8Bom(this Memory<byte> bytes) =>
-        bytes.Span.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]) ? bytes[3..] : bytes;
+        bytes.Span.StartsWith("﻿"u8) ? bytes[3..] : bytes;
 
     internal static JsonElement? Get(JsonElement? element, string name)
     {

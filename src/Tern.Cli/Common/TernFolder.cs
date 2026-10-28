@@ -24,12 +24,12 @@ public static class TernFolder
         var dir = new DirectoryInfo(Path.GetFullPath(start));
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, Name);
+            var candidate = Path.Join(dir.FullName, Name);
             if (Directory.Exists(candidate))
             {
                 return candidate;
             }
-            if (Directory.Exists(Path.Combine(dir.FullName, ".git")) || File.Exists(Path.Combine(dir.FullName, ".git")))
+            if (Directory.Exists(Path.Join(dir.FullName, ".git")) || File.Exists(Path.Join(dir.FullName, ".git")))
             {
                 return null;
             }
@@ -44,7 +44,7 @@ public static class TernFolder
     /// </summary>
     public static string? ConfigFile(string? ternFolder, string? projectDirectory)
     {
-        foreach (var file in new[] { ternFolder, projectDirectory }.OfType<string>().Select(d => Path.Combine(d, "tern.json")))
+        foreach (var file in new[] { ternFolder, projectDirectory }.OfType<string>().Select(d => Path.Join(d, "tern.json")))
         {
             if (File.Exists(file))
             {
@@ -75,7 +75,7 @@ public static class TernFolder
     /// </summary>
     public static RootConfiguration Root(string ternFolder, RootConfiguration? project) => new()
     {
-        SourcePath = Path.Combine(Path.GetFullPath(ternFolder), "sitecore.json"),
+        SourcePath = Path.Join(Path.GetFullPath(ternFolder), "sitecore.json"),
         ModuleGlobs = DefaultModules(ternFolder) ?? ["*.module.json"],
         DefaultModuleRelativeSerializationPath = "items",
         DefaultMaxRelativeItemPathLength = project?.DefaultMaxRelativeItemPathLength ?? 120,
@@ -93,7 +93,7 @@ public static class TernFolder
     /// <summary>The <c>modules</c> globs of <c>.tern/tern.json</c>, relative to <c>.tern</c>, or null when it has none.</summary>
     public static IReadOnlyList<string>? DefaultModules(string ternFolder)
     {
-        var file = Path.Combine(ternFolder, "tern.json");
+        var file = Path.Join(ternFolder, "tern.json");
         if (!File.Exists(file))
         {
             return null;

@@ -16,7 +16,7 @@ public static class ItemFileReader
 {
     public static ItemData Read(ReadOnlySpan<byte> bytes, string? sourcePath = null, Func<Guid, bool>? includeField = null, bool lenient = true)
     {
-        if (bytes.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+        if (bytes.StartsWith("﻿"u8))
         {
             bytes = bytes[3..];
         }

@@ -7,7 +7,7 @@ namespace Tern.Core.Tests.Remote;
 /// <summary>Endpoints from a committed <c>tern.json</c>, layered under <c>user.json</c> (ADR 0013).</summary>
 public class SharedEndpointTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-shared-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-shared-{Guid.NewGuid():N}");
 
     public SharedEndpointTests() => Directory.CreateDirectory(_root);
 
@@ -17,7 +17,7 @@ public class SharedEndpointTests : IDisposable
         Directory.Delete(_root, recursive: true);
     }
 
-    private string UserJson => Path.Combine(_root, ".sitecore", "user.json");
+    private string UserJson => Path.Join(_root, ".sitecore", "user.json");
 
     private LoginStore Store(string userJson, params SharedEndpoint[] shared)
     {
@@ -98,7 +98,7 @@ public class SharedEndpointTests : IDisposable
     [Fact]
     public void Load_ReadsTheEndpointsOfTernJson()
     {
-        File.WriteAllText(Path.Combine(_root, "tern.json"), """
+        File.WriteAllText(Path.Join(_root, "tern.json"), """
             {
               // Tern settings and endpoints share the file.
               "parallelRequests": 4,
@@ -108,7 +108,7 @@ public class SharedEndpointTests : IDisposable
             }
             """);
 
-        var prod = Assert.Single(ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
+        var prod = Assert.Single(ProjectEndpoints.Load(Path.Join(_root, "tern.json")));
 
         Assert.Equal(new SharedEndpoint("prod", "https://prod.example", null, null, false, true), prod);
     }
@@ -119,9 +119,9 @@ public class SharedEndpointTests : IDisposable
     [InlineData("accessToken")]
     public void Load_RefusesAnythingThatCouldHoldACredential(string property)
     {
-        File.WriteAllText(Path.Combine(_root, "tern.json"), $$"""{ "endpoints": { "dev": { "host": "https://dev.example", "{{property}}": "x" } } }""");
+        File.WriteAllText(Path.Join(_root, "tern.json"), $$"""{ "endpoints": { "dev": { "host": "https://dev.example", "{{property}}": "x" } } }""");
 
-        var ex = Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
+        var ex = Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Join(_root, "tern.json")));
 
         Assert.Contains(property, ex.Message, StringComparison.Ordinal);
     }
@@ -129,11 +129,11 @@ public class SharedEndpointTests : IDisposable
     [Fact]
     public void Load_NeedsAHost()
     {
-        File.WriteAllText(Path.Combine(_root, "tern.json"), """{ "endpoints": { "dev": { "allowWrite": true } } }""");
+        File.WriteAllText(Path.Join(_root, "tern.json"), """{ "endpoints": { "dev": { "allowWrite": true } } }""");
 
-        Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
+        Assert.Throws<CliException>(() => ProjectEndpoints.Load(Path.Join(_root, "tern.json")));
     }
 
     [Fact]
-    public void Load_WithoutTernJson_IsEmpty() => Assert.Empty(ProjectEndpoints.Load(Path.Combine(_root, "tern.json")));
+    public void Load_WithoutTernJson_IsEmpty() => Assert.Empty(ProjectEndpoints.Load(Path.Join(_root, "tern.json")));
 }

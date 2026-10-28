@@ -137,6 +137,7 @@ public sealed class DeployApi(CloudClient client)
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
             {
+                // Not answering yet, as expected while it starts: try again until the deadline.
             }
             await delay(TimeSpan.FromSeconds(1), ct);
         }
@@ -226,6 +227,7 @@ public sealed class DeployApi(CloudClient client)
             }
             catch (CloudApiException)
             {
+                // The environment only makes the message more specific; report the conflict without it.
             }
             throw Conflict(ex, environmentId);
         }

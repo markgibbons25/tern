@@ -9,7 +9,7 @@ namespace Tern.Core.Tests.Cloud;
 
 public class GitIgnoreTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-zip-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-zip-{Guid.NewGuid():N}");
 
     public GitIgnoreTests()
     {
@@ -19,7 +19,7 @@ public class GitIgnoreTests : IDisposable
 
     private void Write(string relative, string text = "x")
     {
-        var path = Path.Combine(_root, relative.Replace('/', Path.DirectorySeparatorChar));
+        var path = Path.Join(_root, relative.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, text);
     }
@@ -86,7 +86,7 @@ public class GitIgnoreTests : IDisposable
         Write("a.local.json");
         Write("keep.local.json");
         Write("secret.txt");
-        GitIgnore.GlobalExcludesFile = () => Path.Combine(_root, "global-ignore");
+        GitIgnore.GlobalExcludesFile = () => Path.Join(_root, "global-ignore");
         try
         {
             Assert.Equal([".gitignore", "global-ignore", "keep.local.json"], GitIgnore.Files(_root));
@@ -161,8 +161,8 @@ public class GitIgnoreTests : IDisposable
         Write("lib/tracked.dll");
         Write("lib/untracked.dll");
         Write("b.dll");
-        Directory.CreateDirectory(Path.Combine(_root, ".git"));
-        File.WriteAllBytes(Path.Combine(_root, ".git", "index"), Index(2, ".gitignore", "a.txt", "lib/tracked.dll"));
+        Directory.CreateDirectory(Path.Join(_root, ".git"));
+        File.WriteAllBytes(Path.Join(_root, ".git", "index"), Index(2, ".gitignore", "a.txt", "lib/tracked.dll"));
 
         Assert.Equal([".gitignore", "a.txt", "lib/tracked.dll"], GitIgnore.Files(_root));
     }

@@ -72,6 +72,7 @@ public sealed class CmRestClient(HttpClient http, string host, TokenProvider tok
         }
         catch (JsonException)
         {
+            // Not JSON, such as an HTML error page: show the start of the body instead.
         }
         return text.Length > 500 ? text[..500] + "…" : text;
     }

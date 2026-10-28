@@ -13,13 +13,13 @@ public sealed class FileItemTreeTests : IDisposable
     private static readonly Guid Thumbnail = Guid.Parse("c7c26117-dbb1-42b2-ab5e-f7223845cca3");
     private static readonly Guid Outside = Guid.Parse("99999999-0000-0000-0000-000000000000");
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "tern-tree-" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = Path.Join(Path.GetTempPath(), "tern-tree-" + Guid.NewGuid().ToString("N"));
     private readonly Include _include;
 
     public FileItemTreeTests()
     {
-        _include = new Include { Name = "test", Path = ItemPath.Parse("/sitecore/content/Site"), PhysicalRoot = Path.Combine(_root, "items", "test") };
-        _include.Module = new Module { Namespace = "Test", SourcePath = Path.Combine(_root, "test.module.json"), Includes = [_include] };
+        _include = new Include { Name = "test", Path = ItemPath.Parse("/sitecore/content/Site"), PhysicalRoot = Path.Join(_root, "items", "test") };
+        _include.Module = new Module { Namespace = "Test", SourcePath = Path.Join(_root, "test.module.json"), Includes = [_include] };
     }
 
     public void Dispose()
@@ -34,7 +34,7 @@ public sealed class FileItemTreeTests : IDisposable
 
     private static bool IncludeField(Guid id) => id != Thumbnail;
 
-    private FileIndexCache Index() => new(Path.Combine(_root, "index"), "excluded:" + Thumbnail.ToString("N"));
+    private FileIndexCache Index() => new(Path.Join(_root, "index"), "excluded:" + Thumbnail.ToString("N"));
 
     private static ItemData Item(int id, int parent, string path, string title)
     {
@@ -126,7 +126,7 @@ public sealed class FileItemTreeTests : IDisposable
     public void A_damaged_index_is_ignored()
     {
         Pull(Item(1, 0, "/sitecore/content/Site", "Root"));
-        foreach (var idx in Directory.EnumerateFiles(Path.Combine(_root, "index")))
+        foreach (var idx in Directory.EnumerateFiles(Path.Join(_root, "index")))
         {
             File.WriteAllBytes(idx, [1, 2, 3]);
         }
@@ -138,7 +138,7 @@ public sealed class FileItemTreeTests : IDisposable
     {
         Pull(Item(1, 0, "/sitecore/content/Site", "Root"));
         // With nothing excluded the Signature includes __Thumbnail, so it must not come from the other set's index.
-        var all = new FileItemTree(_ => true, index: new FileIndexCache(Path.Combine(_root, "index"), "excluded:")).Files(_include).Single();
+        var all = new FileItemTree(_ => true, index: new FileIndexCache(Path.Join(_root, "index"), "excluded:")).Files(_include).Single();
         Assert.Equal(new FileItemTree(_ => true).Files(_include).Single().Signature, all.Signature);
     }
 

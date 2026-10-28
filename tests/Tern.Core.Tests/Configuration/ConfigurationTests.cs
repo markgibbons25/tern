@@ -5,15 +5,15 @@ namespace Tern.Core.Tests.Configuration;
 
 public class ConfigurationTests
 {
-    private static string Project(string name) => Path.Combine(AppContext.BaseDirectory, "fixtures", "push-basic", name);
+    private static string Project(string name) => Path.Join(AppContext.BaseDirectory, "fixtures", "push-basic", name);
 
     [Fact]
     public void Loads_modules_and_resolves_include_folders()
     {
-        var root = ConfigurationLoader.LoadRoot(Path.Combine(Project("s0"), "sitecore.json"));
+        var root = ConfigurationLoader.LoadRoot(Path.Join(Project("s0"), "sitecore.json"));
         var modules = ConfigurationLoader.LoadModules(root);
         var include = Assert.Single(Assert.Single(modules).Includes);
-        Assert.Equal(Path.Combine(Project("s0"), "items", "tern-tests"), include.PhysicalRoot);
+        Assert.Equal(Path.Join(Project("s0"), "items", "tern-tests"), include.PhysicalRoot);
         Assert.Equal("/sitecore/system/Modules/Tern Tests", include.Path.ToString());
     }
 

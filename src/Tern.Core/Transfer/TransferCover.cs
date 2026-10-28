@@ -22,6 +22,7 @@ public sealed record DataTree(ItemPath Path, Guid Id, Guid ParentId, bool Descen
 /// </summary>
 public static class TransferCover
 {
+    /// <summary>The Data Trees that carry exactly the items <paramref name="include"/> serializes.</summary>
     /// <param name="sourceItems">The Include's subtree on the source, as far as its scope reaches.</param>
     /// <param name="merge">
     /// The strategy for the whole transfer. A <c>CreateOnly</c> push operation keeps what the

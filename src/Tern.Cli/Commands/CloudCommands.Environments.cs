@@ -122,6 +122,7 @@ public static partial class CloudCommands
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
+                // Five minutes passed: print the last status, which says the restart isn't finished.
             }
             session.Output.RawJson(w => CloudOutput.WriteObject(w, status.ValueKind == JsonValueKind.Object ? status : EmptyObject, CloudOutput.RestartStatus));
             var complete = status.ValueKind == JsonValueKind.Object && CloudOutput.Status(status, "restartStatus") == 2;

@@ -18,9 +18,8 @@ public static class Glob
                 continue;
             }
             var segments = pattern.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var file in new Walker().Walk(rootDirectory, segments, 0, depth: 0, known: false))
+            foreach (var full in new Walker().Walk(rootDirectory, segments, 0, depth: 0, known: false).Select(Path.GetFullPath))
             {
-                var full = Path.GetFullPath(file);
                 if (seen.Add(full))
                 {
                     results.Add(full);

@@ -9,13 +9,13 @@ public class ConsoleTests;
 [Collection(nameof(ConsoleTests))]
 public class ReadOnlyEndpointTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-readonly-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-readonly-{Guid.NewGuid():N}");
 
     public ReadOnlyEndpointTests()
     {
-        Directory.CreateDirectory(Path.Combine(_root, ".sitecore"));
+        Directory.CreateDirectory(Path.Join(_root, ".sitecore"));
         // Port 1 refuses connections, so a command that gets past the check fails fast.
-        File.WriteAllText(Path.Combine(_root, ".sitecore", "user.json"), """
+        File.WriteAllText(Path.Join(_root, ".sitecore", "user.json"), """
             {
               "endpoints": {
                 "default": { "host": "http://127.0.0.1:1", "allowWrite": false, "accessToken": "t", "expiresIn": 3600, "lastUpdated": "2099-01-01T00:00:00Z" }

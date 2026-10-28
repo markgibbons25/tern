@@ -144,7 +144,7 @@ public sealed record EnvironmentCredentials(string ClientId, string ClientSecret
     /// </summary>
     public static Func<string, string?> Reader(params string?[]? directories)
     {
-        var files = (directories ?? []).OfType<string>().Select(d => Path.Combine(d, ".env")).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase)
+        var files = (directories ?? []).OfType<string>().Select(d => Path.Join(d, ".env")).Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(f => DotEnv.Parse(File.ReadAllLines(f))).ToList();
         return name => Environment.GetEnvironmentVariable(name) ?? files.Select(v => v.GetValueOrDefault(name)).FirstOrDefault(v => v is not null);
     }

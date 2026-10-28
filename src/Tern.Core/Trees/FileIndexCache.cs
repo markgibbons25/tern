@@ -19,7 +19,7 @@ public sealed class FileIndexCache(string directory, string key)
 
     /// <summary>The user's index folder: <c>%LOCALAPPDATA%\Tern\file-index</c> or <c>~/.local/share/Tern/file-index</c>.</summary>
     public static FileIndexCache ForUser(string key) =>
-        new(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tern", "file-index"), key);
+        new(System.IO.Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tern", "file-index"), key);
 
     /// <summary>The entries for <paramref name="root"/>, by path relative to it; empty when there is no usable index.</summary>
     public Dictionary<string, Entry> Load(string root)
@@ -80,6 +80,7 @@ public sealed class FileIndexCache(string directory, string key)
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // The index only saves time; without it the next run reads the files again.
         }
     }
 
@@ -87,5 +88,5 @@ public sealed class FileIndexCache(string directory, string key)
     private string Identity(string root) => System.IO.Path.GetFullPath(root).TrimEnd('\\', '/') + "\n" + key;
 
     private string FileFor(string root) =>
-        System.IO.Path.Combine(directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Identity(root).ToLowerInvariant())))[..32] + ".idx");
+        System.IO.Path.Join(directory, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Identity(root).ToLowerInvariant())))[..32] + ".idx");
 }

@@ -110,9 +110,8 @@ public static class Pager
     private static string? OnPath(string name)
     {
         var file = OperatingSystem.IsWindows() ? name + ".exe" : name;
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var path in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).Select(dir => Path.Join(dir.Trim('"'), file)))
         {
-            var path = Path.Combine(dir.Trim('"'), file);
             if (File.Exists(path))
             {
                 return path;
@@ -131,10 +130,10 @@ public static class Pager
         List<string> candidates = [];
         if (OnPath("git") is { } git && Path.GetDirectoryName(git) is { } dir)
         {
-            candidates.Add(Path.Combine(dir, "..", "usr", "bin", "less.exe"));
-            candidates.Add(Path.Combine(dir, "..", "..", "usr", "bin", "less.exe"));
+            candidates.Add(Path.Join(dir, "..", "usr", "bin", "less.exe"));
+            candidates.Add(Path.Join(dir, "..", "..", "usr", "bin", "less.exe"));
         }
-        candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "usr", "bin", "less.exe"));
+        candidates.Add(Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "usr", "bin", "less.exe"));
         return candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
     }
 }

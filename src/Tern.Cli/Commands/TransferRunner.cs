@@ -347,5 +347,6 @@ public static class TransferRunner
     }
 }
 
+/// <summary>How <c>content transfer</c> carries items across.</summary>
 /// <param name="Wait">Wait until the target has written the items to its database, not only until they are available.</param>
 public sealed record TransferOptions(MergeStrategy Merge, bool NoConsume, bool Yes, bool Wait = false);

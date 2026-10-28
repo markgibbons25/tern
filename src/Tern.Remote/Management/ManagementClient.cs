@@ -73,7 +73,7 @@ public sealed class ManagementClient
         try
         {
             var json = bytes.AsMemory();
-            if (json.Span.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+            if (json.Span.StartsWith("﻿"u8))
             {
                 json = json[3..];
             }
@@ -83,14 +83,26 @@ public sealed class ManagementClient
         {
             throw new ManagementException($"{_endpoint} returned something that is not JSON: {Truncate(Text())}", ex);
         }
-        if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
+        // The caller owns the document only when it is returned; on an error, or any throw while
+        // reading it, it is disposed here.
+        var returned = false;
+        try
         {
-            // Read before the document is disposed.
-            var messages = errors.EnumerateArray().Select(e => e.TryGetProperty("message", out var m) ? m.GetString() : e.GetRawText()).ToList();
-            doc.Dispose();
-            throw new ManagementException("GraphQL error: " + string.Join("; ", messages));
+            if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() > 0)
+            {
+                var messages = errors.EnumerateArray().Select(e => e.TryGetProperty("message", out var m) ? m.GetString() : e.GetRawText()).ToList();
+                throw new ManagementException("GraphQL error: " + string.Join("; ", messages));
+            }
+            returned = true;
+            return doc;
         }
-        return doc;
+        finally
+        {
+            if (!returned)
+            {
+                doc.Dispose();
+            }
+        }
     }
 
     private async Task<(HttpStatusCode Status, byte[] Body)> SendAsync(byte[] body, string token, CancellationToken ct)
@@ -152,7 +164,7 @@ public sealed class RequestRecorder(string directory)
         sb.AppendLine(Redact(Encoding.UTF8.GetString(requestBody)));
         sb.AppendLine("--- response");
         sb.AppendLine(Redact(responseBody));
-        File.WriteAllText(Path.Combine(directory, $"{n:D5}.txt"), sb.ToString());
+        File.WriteAllText(Path.Join(directory, $"{n:D5}.txt"), sb.ToString());
     }
 
     private static string Redact(string json)

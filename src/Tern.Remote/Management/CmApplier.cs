@@ -337,19 +337,13 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
     /// <summary>Fields only in the source, fields that differ, and fields only in the target.</summary>
     private static IEnumerable<(FieldValue? Left, FieldValue? Right)> FieldDifferences(FieldList left, FieldList right)
     {
-        foreach (var l in left)
+        foreach (var l in left.Where(l => right[l.Id] is null))
         {
-            if (right[l.Id] is null)
-            {
-                yield return (l, null);
-            }
+            yield return (l, null);
         }
-        foreach (var r in right)
+        foreach (var r in right.Where(r => left[r.Id] is null))
         {
-            if (left[r.Id] is null)
-            {
-                yield return (null, r);
-            }
+            yield return (null, r);
         }
         foreach (var r in right)
         {

@@ -32,7 +32,7 @@ public sealed class CloudContext
         else if (environment is not null)
         {
             // Client credentials from the environment work without any stored login, and nothing is written.
-            endpoint = LoginStore.Load(Path.Combine(Path.GetTempPath(), $"tern-{Guid.NewGuid():N}.json")).GetOrAdd(LoginStore.OfficialKey(CloudEndpoints.Name));
+            endpoint = LoginStore.Load(Path.Join(Path.GetTempPath(), $"tern-{Guid.NewGuid():N}.json")).GetOrAdd(LoginStore.OfficialKey(CloudEndpoints.Name));
             tokens = new TokenProvider(endpoint, new OidcClient(Session.Http), environment);
         }
         else

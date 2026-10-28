@@ -237,7 +237,7 @@ public static class LoginCommands
         cmd.SetAction((parse, ct) => CommonOptions.RunAsync(parse, (session, _) =>
         {
             var dir = session.ConfigDirectory;
-            var file = Path.Combine(dir, "sitecore.json");
+            var file = Path.Join(dir, "sitecore.json");
             if (File.Exists(file))
             {
                 throw new CliException($"{file} already exists.");

@@ -174,7 +174,8 @@ jobs:
 
       - name: Sign in to nuget.org
         id: login
-        uses: NuGet/login@v1
+        # Pinned to a commit: this step is handed the nuget.org key, so a moved tag can't change it.
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
         with:
           user: ${{ vars.NUGET_USER }}
 

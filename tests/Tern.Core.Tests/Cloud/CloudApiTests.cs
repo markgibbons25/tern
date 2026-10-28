@@ -55,7 +55,7 @@ internal sealed class CloudFixture : IDisposable
 {
     public CloudFixture()
     {
-        StorePath = Path.Combine(Path.GetTempPath(), $"tern-cloud-{Guid.NewGuid():N}.json");
+        StorePath = Path.Join(Path.GetTempPath(), $"tern-cloud-{Guid.NewGuid():N}.json");
         Store = LoginStore.Load(StorePath);
         Endpoint = Store.GetOrAdd("xmCloud");
         Endpoint.Host = "https://deploy.test/";
@@ -309,7 +309,7 @@ public class CloudEndpointTests
 
     private static LoginStore Load(string json)
     {
-        var file = Path.Combine(Path.GetTempPath(), $"tern-user-{Guid.NewGuid():N}.json");
+        var file = Path.Join(Path.GetTempPath(), $"tern-user-{Guid.NewGuid():N}.json");
         File.WriteAllText(file, json);
         return LoginStore.Load(file);
     }

@@ -164,7 +164,7 @@ public static class ItemResCommands
         var written = new List<string>();
         foreach (var (database, items) in byDatabase)
         {
-            var file = Path.Combine(dir, $"items.{database.ToLowerInvariant()}.{name}.dat");
+            var file = Path.Join(dir, $"items.{database.ToLowerInvariant()}.{name}.dat");
             if (File.Exists(file) && !overwrite)
             {
                 throw new CliException($"{file} already exists. Pass --overwrite to replace it.");

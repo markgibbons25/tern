@@ -22,5 +22,5 @@ public sealed class RootConfiguration
     public int ApiClientTimeoutInMinutes { get; init; } = 5;
 
     /// <summary>Where the login store lives.</summary>
-    public string UserConfigurationPath => Path.Combine(RootDirectory, ".sitecore", "user.json");
+    public string UserConfigurationPath => Path.Join(RootDirectory, ".sitecore", "user.json");
 }

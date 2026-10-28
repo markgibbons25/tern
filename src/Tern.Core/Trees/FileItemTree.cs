@@ -75,9 +75,8 @@ public sealed class FileItemTree(Func<Guid, bool> includeField, IReadOnlyList<In
     {
         var wanted = ids.ToHashSet();
         var result = new List<ItemMetadata>();
-        foreach (var i in SameDatabase(include))
+        foreach (var index in SameDatabase(include).Select(IndexOf))
         {
-            var index = IndexOf(i);
             var found = new List<int>();
             foreach (var id in wanted)
             {
@@ -101,9 +100,8 @@ public sealed class FileItemTree(Func<Guid, bool> includeField, IReadOnlyList<In
         var parents = parentIds.ToHashSet();
         var seen = new HashSet<Guid>();
         var result = new List<ItemMetadata>();
-        foreach (var i in SameDatabase(include))
+        foreach (var index in SameDatabase(include).Select(IndexOf))
         {
-            var index = IndexOf(i);
             var found = new List<int>();
             foreach (var parent in parents)
             {

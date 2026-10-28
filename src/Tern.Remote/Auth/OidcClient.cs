@@ -63,7 +63,8 @@ public sealed class OidcClient(HttpClient http)
         {
             form["audience"] = audience;
         }
-        using var response = await http.PostAsync(deviceEndpoint, new FormUrlEncodedContent(form), ct);
+        using var content = new FormUrlEncodedContent(form);
+        using var response = await http.PostAsync(deviceEndpoint, content, ct);
         using var json = await ReadJsonAsync(response, ct);
         var root = json.RootElement;
         var deviceCode = root.GetProperty("device_code").GetString()!;
@@ -89,7 +90,8 @@ public sealed class OidcClient(HttpClient http)
                 ["device_code"] = deviceCode,
                 ["client_id"] = clientId,
             };
-            using var tokenResponse = await http.PostAsync(tokenEndpoint, new FormUrlEncodedContent(poll), ct);
+            using var pollContent = new FormUrlEncodedContent(poll);
+            using var tokenResponse = await http.PostAsync(tokenEndpoint, pollContent, ct);
             using var tokenJson = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync(ct));
             if (tokenResponse.IsSuccessStatusCode)
             {
@@ -164,6 +166,7 @@ public sealed class OidcClient(HttpClient http)
             }
             catch (JsonException)
             {
+                // Not JSON: the body itself is the detail.
             }
             throw new AuthenticationException($"{response.RequestMessage?.RequestUri} returned {(int)response.StatusCode}: {detail}");
         }

@@ -20,7 +20,7 @@ public class CorpusPathMappingTests
         var notIncluded = 0;
         foreach (var project in projects!.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            var root = ConfigurationLoader.LoadRoot(Path.Combine(project, "sitecore.json"));
+            var root = ConfigurationLoader.LoadRoot(Path.Join(project, "sitecore.json"));
             var modules = ConfigurationLoader.Validate(ConfigurationLoader.LoadModules(root));
             foreach (var include in modules.SelectMany(m => m.Includes))
             {

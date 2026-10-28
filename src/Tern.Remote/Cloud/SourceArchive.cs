@@ -26,7 +26,7 @@ public static class SourceArchive
         {
             foreach (var relative in files)
             {
-                var full = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+                var full = Path.Join(root, relative.Replace('/', Path.DirectorySeparatorChar));
                 var entry = zip.CreateEntry(relative);
                 var written = File.GetLastWriteTime(full);
                 // Zip timestamps cover 1980 to 2107 only.
@@ -90,9 +90,9 @@ public sealed class GitIgnore
         {
             return null;
         }
-        var xdg = System.Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x ? x : Path.Combine(home, ".config");
+        var xdg = System.Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } x ? x : Path.Join(home, ".config");
         string? configured = null;
-        foreach (var config in new[] { Path.Combine(xdg, "git", "config"), Path.Combine(home, ".gitconfig") })
+        foreach (var config in new[] { Path.Join(xdg, "git", "config"), Path.Join(home, ".gitconfig") })
         {
             if (File.Exists(config) && CoreExcludesFile(File.ReadAllLines(config)) is { } value)
             {
@@ -103,7 +103,7 @@ public sealed class GitIgnore
         {
             return configured.StartsWith("~/", StringComparison.Ordinal) ? Path.Combine(home, configured[2..]) : configured;
         }
-        return Path.Combine(xdg, "git", "ignore");
+        return Path.Join(xdg, "git", "ignore");
     }
 
     /// <summary>The <c>excludesFile</c> setting of the <c>[core]</c> section of a git config file, if any.</summary>
@@ -111,9 +111,8 @@ public sealed class GitIgnore
     {
         string? section = null;
         string? value = null;
-        foreach (var raw in lines)
+        foreach (var line in lines.Select(raw => raw.Trim()))
         {
-            var line = raw.Trim();
             if (line.StartsWith('['))
             {
                 section = line.Trim('[', ']').Trim().ToLowerInvariant();
@@ -137,12 +136,12 @@ public sealed class GitIgnore
         {
             stack.Add(Parse(string.Empty, File.ReadAllText(global)));
         }
-        var exclude = Path.Combine(root, ".git", "info", "exclude");
+        var exclude = Path.Join(root, ".git", "info", "exclude");
         if (File.Exists(exclude))
         {
             stack.Add(Parse(string.Empty, File.ReadAllText(exclude)));
         }
-        var tracked = GitIndex.TrackedFiles(Path.Combine(root, ".git", "index"));
+        var tracked = GitIndex.TrackedFiles(Path.Join(root, ".git", "index"));
         var trackedFolders = new HashSet<string>(tracked.Comparer);
         foreach (var path in tracked)
         {
@@ -163,7 +162,7 @@ public sealed class GitIgnore
     private static void Walk(string directory, string relative, List<GitIgnore> stack, HashSet<string> tracked, HashSet<string> trackedFolders, bool ignored, List<string> results)
     {
         var added = false;
-        var file = Path.Combine(directory, ".gitignore");
+        var file = Path.Join(directory, ".gitignore");
         if (!ignored && File.Exists(file))
         {
             stack.Add(Parse(relative, File.ReadAllText(file)));

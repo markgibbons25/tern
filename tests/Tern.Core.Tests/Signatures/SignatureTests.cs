@@ -7,7 +7,7 @@ namespace Tern.Core.Tests.Signatures;
 public class SignatureTests
 {
     private static string Fixture(params string[] parts) =>
-        Path.Combine([AppContext.BaseDirectory, "fixtures", "push-basic", "s0", "items", "tern-tests", .. parts]);
+        Path.Join([AppContext.BaseDirectory, "fixtures", "push-basic", "s0", "items", "tern-tests", .. parts]);
 
     /// <summary>
     /// The expected values are the <c>dataSignature</c>s a local SitecoreAI CM (Management Services

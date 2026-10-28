@@ -207,13 +207,10 @@ public sealed class FileApplier(FileItemTree files, Func<Guid, bool> includeFiel
                             File.Delete(file);
                             Removed(file);
                         }
-                        foreach (var folder in paths.ChildrenFoldersFor(path))
+                        foreach (var folder in paths.ChildrenFoldersFor(path).Where(Directory.Exists))
                         {
-                            if (Directory.Exists(folder))
-                            {
-                                Directory.Delete(folder, recursive: true);
-                                _folders.Clear();
-                            }
+                            Directory.Delete(folder, recursive: true);
+                            _folders.Clear();
                         }
                         foreach (var (id, gone) in index.Where(kv => kv.Value.Path.IsDescendantOrSelfOf(path)).ToList())
                         {

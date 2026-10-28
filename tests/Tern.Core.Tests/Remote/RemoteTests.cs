@@ -11,7 +11,7 @@ public class LoginStoreTests
     [Fact]
     public void Keeps_unknown_properties_and_resolves_ref_endpoints()
     {
-        var file = Path.Combine(Path.GetTempPath(), $"tern-user-{Guid.NewGuid():N}.json");
+        var file = Path.Join(Path.GetTempPath(), $"tern-user-{Guid.NewGuid():N}.json");
         File.WriteAllText(file, """
             {
               "endpoints": {

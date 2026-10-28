@@ -18,7 +18,7 @@ public sealed class TreeScopeTests : IDisposable
     private static readonly Guid Title = Guid.Parse("75577384-3c97-45da-a847-81b00500e250");
     private static readonly Guid Outside = Guid.Parse("99999999-0000-0000-0000-000000000000");
 
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "tern-scope-" + Guid.NewGuid().ToString("N"));
+    private readonly string _root = Path.Join(Path.GetTempPath(), "tern-scope-" + Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {
@@ -32,8 +32,8 @@ public sealed class TreeScopeTests : IDisposable
 
     private Include Include(TreeScope scope, params IncludeRule[] rules)
     {
-        var include = new Include { Name = "test", Path = ItemPath.Parse("/sitecore/content/Site"), Scope = scope, Rules = rules, PhysicalRoot = Path.Combine(_root, "items", "test") };
-        include.Module = new Module { Namespace = "Test", SourcePath = Path.Combine(_root, "test.module.json"), Includes = [include] };
+        var include = new Include { Name = "test", Path = ItemPath.Parse("/sitecore/content/Site"), Scope = scope, Rules = rules, PhysicalRoot = Path.Join(_root, "items", "test") };
+        include.Module = new Module { Namespace = "Test", SourcePath = Path.Join(_root, "test.module.json"), Includes = [include] };
         return include;
     }
 
@@ -78,10 +78,10 @@ public sealed class TreeScopeTests : IDisposable
     private Module LoadModule(string? scope)
     {
         Directory.CreateDirectory(_root);
-        File.WriteAllText(Path.Combine(_root, "sitecore.json"), """{ "modules": ["*.module.json"], "serialization": { "defaultModuleRelativeSerializationPath": "items" } }""");
+        File.WriteAllText(Path.Join(_root, "sitecore.json"), """{ "modules": ["*.module.json"], "serialization": { "defaultModuleRelativeSerializationPath": "items" } }""");
         var scopeJson = scope is null ? string.Empty : $", \"scope\": \"{scope}\"";
-        File.WriteAllText(Path.Combine(_root, "test.module.json"), $$"""{ "namespace": "Test", "items": { "includes": [ { "name": "test", "path": "/sitecore/content/Site"{{scopeJson}} } ] } }""");
-        var root = ConfigurationLoader.LoadRoot(Path.Combine(_root, "sitecore.json"));
+        File.WriteAllText(Path.Join(_root, "test.module.json"), $$"""{ "namespace": "Test", "items": { "includes": [ { "name": "test", "path": "/sitecore/content/Site"{{scopeJson}} } ] } }""");
+        var root = ConfigurationLoader.LoadRoot(Path.Join(_root, "sitecore.json"));
         return Assert.Single(ConfigurationLoader.LoadModules(root));
     }
 
@@ -203,7 +203,7 @@ public sealed class TreeScopeTests : IDisposable
     {
         var include = Include(scope);
         var paths = new ItemFilePaths(include);
-        string? Expected(string? relative) => relative is null ? null : Path.Combine(include.PhysicalRoot, relative.Replace('/', Path.DirectorySeparatorChar));
+        string? Expected(string? relative) => relative is null ? null : Path.Join(include.PhysicalRoot, relative.Replace('/', Path.DirectorySeparatorChar));
         Assert.Equal(Expected(root), paths.FileFor(ItemPath.Parse("/sitecore/content/Site")));
         Assert.Equal(Expected(child), paths.FileFor(ItemPath.Parse("/sitecore/content/Site/A")));
         Assert.Equal(Expected(grandchild), paths.FileFor(ItemPath.Parse("/sitecore/content/Site/A/A1")));
@@ -392,8 +392,8 @@ public sealed class TreeScopeTests : IDisposable
         var include = Include(TreeScope.DescendantsOnly);
         var files = Pull(include, Site());
         Assert.DoesNotContain(files.Files(include), f => f.Id == G(1));
-        Assert.False(File.Exists(Path.Combine(include.PhysicalRoot, "Site.yml")));
-        Assert.True(File.Exists(Path.Combine(include.PhysicalRoot, "Site", "A.yml")));
+        Assert.False(File.Exists(Path.Join(include.PhysicalRoot, "Site.yml")));
+        Assert.True(File.Exists(Path.Join(include.PhysicalRoot, "Site", "A.yml")));
     }
 
     [Theory]

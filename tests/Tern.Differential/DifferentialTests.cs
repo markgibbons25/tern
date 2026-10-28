@@ -13,13 +13,13 @@ namespace Tern.Differential;
 public class DifferentialTests
 {
     private static string Repo([System.Runtime.CompilerServices.CallerFilePath] string here = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", ".."));
+        Path.GetFullPath(Path.Join(Path.GetDirectoryName(here)!, "..", ".."));
 
     [Fact]
     public void The_snapshot_normaliser_removes_every_statistics_field()
     {
         // A snapshot comparison is only as good as its list of fields that change on every save.
-        var script = File.ReadAllText(Path.Combine(Repo(), "tests", "differential", "normalize.py"));
+        var script = File.ReadAllText(Path.Join(Repo(), "tests", "differential", "normalize.py"));
         var listed = Regex.Matches(script, "\"([0-9a-f-]{36})\"").Select(m => Guid.Parse(m.Groups[1].Value)).ToHashSet();
         Assert.All(WellKnownFields.Statistics.Where(f => f != WellKnownFields.LastRun), f => Assert.Contains(f, listed));
     }
@@ -31,7 +31,7 @@ public class DifferentialTests
         var tern = Environment.GetEnvironmentVariable("TERN_EXE");
         Assert.SkipWhen(fixture is null || tern is null, "TERN_DIFFERENTIAL_FIXTURE and TERN_EXE are not set.");
 
-        var script = Path.Combine(Repo(), "tests", "differential", "push-diff.sh");
+        var script = Path.Join(Repo(), "tests", "differential", "push-diff.sh");
         using var process = Process.Start(new ProcessStartInfo("bash", [script, fixture!, tern!])
         {
             RedirectStandardOutput = true,

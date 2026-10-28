@@ -10,14 +10,14 @@ namespace Tern.Core.Tests.Configuration;
 
 public class ContentScopeTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-content-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-content-{Guid.NewGuid():N}");
 
     private static Module M(string file, params string[] paths)
     {
         var module = new Module
         {
             Namespace = "Project." + file,
-            SourcePath = Path.Combine("/project", file + ".module.json"),
+            SourcePath = Path.Join("/project", file + ".module.json"),
             Includes = paths.Select((p, i) => new Include { Name = $"{file}-{i}", Path = ItemPath.Parse(p) }).ToList(),
         };
         foreach (var include in module.Includes)
@@ -105,12 +105,12 @@ public class ContentScopeTests : IDisposable
     public void An_ad_hoc_module_writes_beside_the_other_item_files()
     {
         Directory.CreateDirectory(_root);
-        File.WriteAllText(Path.Combine(_root, "sitecore.json"), """{ "modules": [], "serialization": { "defaultMaxRelativeItemPathLength": 100 } }""");
-        var root = ConfigurationLoader.LoadRoot(Path.Combine(_root, "sitecore.json"));
-        var module = ConfigurationLoader.AdHocModule(root, "Tern.Content.Path", Path.Combine(_root, "items"), "adhoc", ItemPath.Parse("/sitecore/content/A/Home/page"), "master", TreeScope.ItemAndChildren);
+        File.WriteAllText(Path.Join(_root, "sitecore.json"), """{ "modules": [], "serialization": { "defaultMaxRelativeItemPathLength": 100 } }""");
+        var root = ConfigurationLoader.LoadRoot(Path.Join(_root, "sitecore.json"));
+        var module = ConfigurationLoader.AdHocModule(root, "Tern.Content.Path", Path.Join(_root, "items"), "adhoc", ItemPath.Parse("/sitecore/content/A/Home/page"), "master", TreeScope.ItemAndChildren);
         var include = Assert.Single(module.Includes);
         Assert.Same(module, include.Module);
-        Assert.Equal(Path.Combine(_root, "items", "adhoc"), include.PhysicalRoot);
+        Assert.Equal(Path.Join(_root, "items", "adhoc"), include.PhysicalRoot);
         Assert.Equal(100, include.MaxRelativePathLength);
         Assert.Equal(TreeScope.ItemAndChildren, include.Scope);
     }
@@ -119,9 +119,9 @@ public class ContentScopeTests : IDisposable
     public void Unregistered_module_files_beside_sitecore_json_are_candidates()
     {
         Directory.CreateDirectory(_root);
-        File.WriteAllText(Path.Combine(_root, "sitecore.json"), """{ "modules": ["registered.module.json"] }""");
-        File.WriteAllText(Path.Combine(_root, "registered.module.json"), """{ "namespace": "Registered", "items": { "includes": [ { "name": "r", "path": "/sitecore/content/R" } ] } }""");
-        File.WriteAllText(Path.Combine(_root, "extra.module.json"), """{ "namespace": "Extra", "items": { "includes": [ { "name": "e", "path": "/sitecore/content/E" } ] } }""");
+        File.WriteAllText(Path.Join(_root, "sitecore.json"), """{ "modules": ["registered.module.json"] }""");
+        File.WriteAllText(Path.Join(_root, "registered.module.json"), """{ "namespace": "Registered", "items": { "includes": [ { "name": "r", "path": "/sitecore/content/R" } ] } }""");
+        File.WriteAllText(Path.Join(_root, "extra.module.json"), """{ "namespace": "Extra", "items": { "includes": [ { "name": "e", "path": "/sitecore/content/E" } ] } }""");
         using var session = new Session(_root, new Output(json: false, verbose: false, trace: false));
         Assert.Equal(["Registered", "Extra"], ContentScope.Candidates(session).Select(m => m.Namespace));
         Assert.Equal(["Registered"], session.AllModules.Select(m => m.Namespace));
@@ -131,7 +131,7 @@ public class ContentScopeTests : IDisposable
     public void Path_options_are_checked()
     {
         Directory.CreateDirectory(_root);
-        File.WriteAllText(Path.Combine(_root, "sitecore.json"), """{ "modules": [] }""");
+        File.WriteAllText(Path.Join(_root, "sitecore.json"), """{ "modules": [] }""");
         using var session = new Session(_root, new Output(json: false, verbose: false, trace: false));
         Assert.Throws<CliException>(() => ContentCommands.Resolve(session, new ContentRequest { Scope = "SingleItem" }));
         Assert.Throws<CliException>(() => ContentCommands.Resolve(session, new ContentRequest { Path = "/sitecore/content/A", Module = "x" }));

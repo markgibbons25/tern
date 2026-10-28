@@ -101,9 +101,8 @@ public static class ContentScope
     {
         var candidates = session.AllModules.ToList();
         var known = candidates.Select(m => m.SourcePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in Directory.EnumerateFiles(session.Root.RootDirectory, "*.module.json").Order(StringComparer.OrdinalIgnoreCase))
+        foreach (var full in Directory.EnumerateFiles(session.Root.RootDirectory, "*.module.json").Order(StringComparer.OrdinalIgnoreCase).Select(Path.GetFullPath))
         {
-            var full = Path.GetFullPath(file);
             if (known.Contains(full))
             {
                 continue;
@@ -127,6 +126,6 @@ public static class ContentScope
         {
             throw new CliException($"--path must be an item path such as /sitecore/content/Home, not '{path}'.");
         }
-        return ConfigurationLoader.AdHocModule(session.Root, PathNamespace, Path.Combine(session.Root.RootDirectory, "items"), PathIncludeName, ItemPath.Parse(path), database, scope);
+        return ConfigurationLoader.AdHocModule(session.Root, PathNamespace, Path.Join(session.Root.RootDirectory, "items"), PathIncludeName, ItemPath.Parse(path), database, scope);
     }
 }

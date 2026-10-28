@@ -81,7 +81,7 @@ public static class PackageCommands
             {
                 throw new CliException($"The package {file} does not exist.");
             }
-            var temp = Path.Combine(Path.GetTempPath(), "tern-package-" + Guid.NewGuid().ToString("N"));
+            var temp = Path.Join(Path.GetTempPath(), "tern-package-" + Guid.NewGuid().ToString("N"));
             try
             {
                 Extract(file, temp);
@@ -141,7 +141,7 @@ public static class PackageCommands
                 foreach (var file in files.Files(include).Where(f => include.IncludesPath(ItemPath.Parse(f.Path))))
                 {
                     var relative = Path.GetRelativePath(baseDir, file.PhysicalPath);
-                    var entryPath = Path.Combine(module.Namespace, "serialization", relative);
+                    var entryPath = Path.Join(module.Namespace, "serialization", relative);
                     var created = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                     using (var e = created.Open())
                     {

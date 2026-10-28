@@ -34,7 +34,7 @@ public class CorpusRoundTripTests
                 {
                     var item = ItemFileReader.Read(original, file, lenient: false);
                     var written = ItemFileWriter.ToBytes(item, newLine);
-                    var hasBom = original.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]);
+                    var hasBom = original.AsSpan().StartsWith("﻿"u8);
                     var comparable = hasBom ? written : written[3..];
                     if (comparable.AsSpan().SequenceEqual(original))
                     {

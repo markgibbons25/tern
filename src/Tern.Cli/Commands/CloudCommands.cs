@@ -380,7 +380,7 @@ public static partial class CloudCommands
         {
             var bytes = await cloud.Deploy.LicenseAsync(await cloud.OrganizationIdAsync(parse.GetValue(licenseId), ct), ct);
             var folder = session.ProjectDirectory;
-            var file = Path.Combine(folder, "license.xml");
+            var file = Path.Join(folder, "license.xml");
             await File.WriteAllBytesAsync(file, bytes, ct);
             session.Output.RawJson(w => w.WriteNullValue());
             session.Output.Line($"Organization license has been saved to {folder}.");

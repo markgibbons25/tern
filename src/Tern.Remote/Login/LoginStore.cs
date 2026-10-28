@@ -34,7 +34,7 @@ public sealed class LoginStore
             });
         }
         var bytes = File.ReadAllBytes(path).AsSpan();
-        if (bytes.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+        if (bytes.StartsWith("﻿"u8))
         {
             bytes = bytes[3..];
         }

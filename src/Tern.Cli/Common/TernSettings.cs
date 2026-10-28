@@ -24,12 +24,13 @@ public sealed class TernSettings
     /// <summary>Keep an index of Item files outside the project so unchanged files aren't read again.</summary>
     public bool FileIndex { get; private set; } = true;
 
+    /// <summary>The settings from every source, in order of precedence, except flags.</summary>
     /// <param name="projectFile">The project's <c>tern.json</c>, or null when it has none.</param>
     public static TernSettings Load(string? projectFile)
     {
         var settings = new TernSettings();
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        settings.Apply(Path.Combine(home, ".config", "tern", "settings.json"));
+        settings.Apply(Path.Join(home, ".config", "tern", "settings.json"));
         if (projectFile is not null)
         {
             settings.Apply(projectFile);

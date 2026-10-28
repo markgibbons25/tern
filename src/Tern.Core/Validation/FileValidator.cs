@@ -96,21 +96,15 @@ public static class FileValidator
     public static List<string> Fix(IReadOnlyList<ValidationIssue> issues)
     {
         var changes = new List<string>();
-        foreach (var issue in issues.Where(i => i.Kind == IssueKind.DuplicateId))
+        foreach (var issue in issues.Where(i => i.Kind == IssueKind.DuplicateId && File.Exists(i.File)))
         {
-            if (File.Exists(issue.File))
-            {
-                File.Delete(issue.File);
-                changes.Add("[D] " + issue.File);
-            }
+            File.Delete(issue.File);
+            changes.Add("[D] " + issue.File);
         }
-        foreach (var issue in issues.Where(i => i.Kind is IssueKind.NotIncluded or IssueKind.OrphanParent))
+        foreach (var issue in issues.Where(i => (i.Kind is IssueKind.NotIncluded or IssueKind.OrphanParent) && File.Exists(i.File)))
         {
-            if (File.Exists(issue.File))
-            {
-                File.Delete(issue.File);
-                changes.Add("[D] " + issue.File);
-            }
+            File.Delete(issue.File);
+            changes.Add("[D] " + issue.File);
         }
         foreach (var issue in issues.Where(i => i.Kind == IssueKind.WrongPhysicalPath && i.ExpectedFile is not null))
         {

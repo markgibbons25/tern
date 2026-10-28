@@ -68,9 +68,25 @@ public static class SecurityFiles
     }
 
     /// <summary>Where a role's file goes. The name's backslash becomes a folder on Windows, as it does for the Official CLI.</summary>
-    public static string RoleFile(string folder, string roleName) => Path.Combine(folder, roleName + ".yml");
+    public static string RoleFile(string folder, string roleName) => Inside(folder, roleName + ".yml");
 
-    public static string UserFile(string folder, string userName) => Path.Combine(folder, userName + ".yml");
+    /// <summary>Where a user's file goes, the same way as <see cref="RoleFile"/>.</summary>
+    public static string UserFile(string folder, string userName) => Inside(folder, userName + ".yml");
+
+    /// <summary>
+    /// <paramref name="relative"/> under <paramref name="folder"/>. Role and user names come from the
+    /// CM, so a name that is rooted or climbs out with <c>..</c> is refused rather than written outside it.
+    /// </summary>
+    private static string Inside(string folder, string relative)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        var full = Path.GetFullPath(Path.Join(root, relative));
+        if (Path.IsPathRooted(relative) || !full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"The name '{relative[..^4]}' would put its file outside {folder}.");
+        }
+        return Path.Join(folder, relative);
+    }
 
     public static RoleData ReadRole(string file)
     {
@@ -199,7 +215,7 @@ public static class SecurityFiles
     }
 
     private static string Decode(byte[] bytes) =>
-        bytes.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]) ? Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3) : Encoding.UTF8.GetString(bytes);
+        bytes.AsSpan().StartsWith("﻿"u8) ? Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3) : Encoding.UTF8.GetString(bytes);
 
     private static byte[] Encode(string text) => [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(text)];
 }

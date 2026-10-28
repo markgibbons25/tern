@@ -5,7 +5,7 @@ namespace Tern.Core.Tests.Remote;
 /// <summary>Client credentials from <c>TERN_*</c> variables, with a project <c>.env</c> as the fallback.</summary>
 public class EnvironmentCredentialsTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"tern-env-{Guid.NewGuid():N}");
+    private readonly string _root = Path.Join(Path.GetTempPath(), $"tern-env-{Guid.NewGuid():N}");
     // Unique per test run, so a TERN_* variable on the machine can't match.
     private readonly string _endpoint = $"t{Guid.NewGuid():N}";
 
@@ -45,7 +45,7 @@ public class EnvironmentCredentialsTests : IDisposable
     [Fact]
     public void For_ReadsEndpointCredentials_FromTheProjectDotEnv()
     {
-        File.WriteAllLines(Path.Combine(_root, ".env"), [$"{Key("CLIENT_ID")}=id-from-file", $"{Key("CLIENT_SECRET")}=secret-from-file"]);
+        File.WriteAllLines(Path.Join(_root, ".env"), [$"{Key("CLIENT_ID")}=id-from-file", $"{Key("CLIENT_SECRET")}=secret-from-file"]);
 
         var credentials = EnvironmentCredentials.For(_endpoint, EnvironmentCredentials.Reader(_root));
 
@@ -57,7 +57,7 @@ public class EnvironmentCredentialsTests : IDisposable
     [Fact]
     public void Reader_PrefersASetVariable_OverTheDotEnv()
     {
-        File.WriteAllLines(Path.Combine(_root, ".env"), [$"{Key("CLIENT_ID")}=id-from-file"]);
+        File.WriteAllLines(Path.Join(_root, ".env"), [$"{Key("CLIENT_ID")}=id-from-file"]);
         Environment.SetEnvironmentVariable(Key("CLIENT_ID"), "id-from-environment");
 
         Assert.Equal("id-from-environment", EnvironmentCredentials.Reader(_root)(Key("CLIENT_ID")));

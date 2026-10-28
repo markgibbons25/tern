@@ -37,7 +37,7 @@ public class UpdateCheckTests
     [Fact]
     public void The_cache_reads_back_what_was_written_and_a_damaged_one_is_ignored()
     {
-        var file = Path.Combine(Path.GetTempPath(), $"tern-update-{Guid.NewGuid():N}", "update-check.json");
+        var file = Path.Join(Path.GetTempPath(), $"tern-update-{Guid.NewGuid():N}", "update-check.json");
         try
         {
             var at = new DateTimeOffset(2026, 10, 27, 1, 2, 3, TimeSpan.Zero);

@@ -26,7 +26,7 @@ public sealed class UpdateCheck
         _latest = latest;
     }
 
-    public static string CacheFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tern", "update-check.json");
+    public static string CacheFile => Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tern", "update-check.json");
 
     /// <summary>Starts the check for a command, or returns null when it shouldn't run.</summary>
     public static UpdateCheck? Start(Output output)

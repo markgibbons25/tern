@@ -105,12 +105,9 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         if (include.Scope == TreeScope.DescendantsOnly)
         {
             var rootIds = roots.Select(r => r.Id).ToHashSet();
-            foreach (var orphan in index.ChildrenOfPath(include.Path).Where(m => include.IncludesPath(m.ItemPath) && !rootIds.Contains(m.Id)))
+            foreach (var orphan in index.ChildrenOfPath(include.Path).Where(m => include.IncludesPath(m.ItemPath) && !rootIds.Contains(m.Id) && CanDelete(include, m)))
             {
-                if (CanDelete(include, orphan))
-                {
-                    deletes.Add(Delete(include, orphan));
-                }
+                deletes.Add(Delete(include, orphan));
             }
         }
 
@@ -414,6 +411,7 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
         private readonly HashSet<(Guid Parent, Guid Child)> _childIds = new();
         private readonly bool _covered;
 
+        /// <summary>Indexes the target's prefetched items by ID and by parent.</summary>
         /// <param name="covered">Whether <paramref name="prefetched"/> is the Include's whole subtree,
         /// so every item under the Include's path already has its children listed.</param>
         public TargetIndex(Include include, IReadOnlyList<ItemMetadata> prefetched, bool covered = true)

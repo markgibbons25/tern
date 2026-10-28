@@ -13,6 +13,7 @@ public static class ProjectEndpoints
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal) { "host", "authority", "audience", "allowWrite", "useClientCredentials" };
 
+    /// <summary>Reads the shared endpoints, refusing any property that isn't allowed.</summary>
     /// <param name="file">The project's <c>tern.json</c> (see <see cref="TernFolder.ConfigFile"/>), or null when it has none.</param>
     public static IReadOnlyList<SharedEndpoint> Load(string? file)
     {
