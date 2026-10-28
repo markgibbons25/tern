@@ -17,7 +17,7 @@ public static class TernApp
         {
             root.Options.Remove(option);
         }
-        var version = new Option<bool>("--version") { Description = "Show Tern's version and the Sitecore CLI line it is a drop-in for." };
+        var version = new Option<bool>("--version") { Description = "Show Tern's version." };
         root.Options.Add(version);
         root.Options.Add(CommonOptions.Config);
         root.Options.Add(CommonOptions.Verbose);
@@ -69,12 +69,5 @@ public static class TernApp
         }
     }
 
-    public static string VersionText
-    {
-        get
-        {
-            var line = typeof(TernApp).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "OfficialCliLine")?.Value ?? "?";
-            return $"tern {Version} (drop-in for Sitecore CLI {line})";
-        }
-    }
+    public static string VersionText => $"tern {Version}";
 }

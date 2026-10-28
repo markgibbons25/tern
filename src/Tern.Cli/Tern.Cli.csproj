@@ -20,7 +20,6 @@
     <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="..\Tern.Core\Tern.Core.csproj" />
     <ProjectReference Include="..\Tern.Remote\Tern.Remote.csproj" />
-    <AssemblyMetadata Include="OfficialCliLine" Value="$(OfficialCliLine)" />
     <InternalsVisibleTo Include="Tern.Core.Tests" />
   </ItemGroup>
 </Project>

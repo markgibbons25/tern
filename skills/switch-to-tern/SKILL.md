@@ -45,7 +45,7 @@ dotnet tool install --global Tern.Cli
 
 If the install can't find the package, add nuget.org to `nuget.config` (`<add key="nuget.org" value="https://api.nuget.org/v3/index.json" />`) and install again.
 
-Done when `tern --version` prints a line starting `tern` and naming the Sitecore CLI line it replaces.
+Done when `tern --version` prints a line starting `tern`.
 
 ## 4. Replace the callers
 
