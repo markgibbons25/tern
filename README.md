@@ -178,6 +178,8 @@ tern apply push.json                     # exactly what was reviewed, or nothing
 
 A Plan records the Signature it expects each target item to have. If anyone changes one of those items before you apply, Tern stops rather than overwriting their work.
 
+A `ser diff` Plan applies between the endpoints it names by host: `tern apply diff.json` finds them, and needs `-s` or `-d` only when no endpoint, or more than one, has that host. A Plan made with `ser diff -p <path>` carries its item path, so it applies without a Module for it.
+
 With `--pager`, when nothing is applied (`--what-if`, `--plan-out`, `ser diff` without `--push`), a list of changes taller than the terminal opens in a pager, with the keys to press on its status line: `TERN_PAGER`, then `PAGER`, then `less` (Git for Windows' copy is found too). Each summary also counts the changes by action and, when they span several modules, by module (`--quiet` prints only these, without a line for each item), and each command ends with how long it took and where the time went. Every command that talks to a CM first names the endpoint and its host, and says when it is read-only, so nothing runs against the wrong environment unnoticed.
 
 ### Configure Tern

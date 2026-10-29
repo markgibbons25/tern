@@ -146,9 +146,30 @@ public static class ConfigurationLoader
         selected.RemoveAll(excluded.Contains);
         if ((include.Count > 0 || exclude.Count > 0) && selected.Count == 0)
         {
-            throw new ConfigurationException($"The filter \"include: {string.Join(", ", include)}, exclude: {string.Join(", ", exclude)}\" did not match any defined serialization module configurations. Use the info command to see valid module names.");
+            throw new ConfigurationException($"The filter \"include: {string.Join(", ", include)}, exclude: {string.Join(", ", exclude)}\" did not match any defined serialization module configurations. Use the info command to see valid module names." + NamespaceHint(include, all));
         }
         return Validate(selected, warn);
+    }
+
+    /// <summary>
+    /// -i and -e match Module namespaces only. When an expression is instead an include name or a
+    /// module file name, says which namespace was meant.
+    /// </summary>
+    private static string NamespaceHint(IReadOnlyList<string> expressions, IReadOnlyList<Module> all)
+    {
+        var hints = new List<string>();
+        foreach (var expression in expressions)
+        {
+            var byFile = all.Where(m => Path.GetFileName(m.SourcePath).Equals(expression, StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(m.SourcePath).Equals(expression + ".module.json", StringComparison.OrdinalIgnoreCase));
+            var byInclude = all.Where(m => m.Includes.Any(i => Wildcard.IsMatch(i.Name, expression)));
+            var meant = byFile.Concat(byInclude).Select(m => m.Namespace).Distinct().ToList();
+            if (meant.Count > 0)
+            {
+                hints.Add($" \"{expression}\" is not a module namespace; -i and -e take namespaces, such as {string.Join(", ", meant.Select(n => $"\"{n}\""))}.");
+            }
+        }
+        return string.Concat(hints);
     }
 
     /// <summary>Checks Modules for duplicate namespaces and clashing include folders, then orders them.</summary>

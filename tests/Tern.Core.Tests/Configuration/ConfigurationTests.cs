@@ -77,4 +77,28 @@ public class ConfigurationTests
     [InlineData("*{00000000-0000-0000-0000-000000000000}*", false)]
     public void Matches_a_multi_line_value(string pattern, bool expected) =>
         Assert.Equal(expected, Wildcard.IsMatch("<r>\n  <d />\n  <r s:id=\"{62DD1639-9F28-4040-8738-C886480B2127}\" />\n</r>", pattern));
+
+    [Theory]
+    [InlineData("site-a-pages")]
+    [InlineData("site-a.module.json")]
+    [InlineData("site-a")]
+    public void A_filter_naming_an_include_or_module_file_says_which_namespace_was_meant(string filter)
+    {
+        var include = new Include { Name = "site-a-pages", Path = ItemPath.Parse("/sitecore/content/Site A") };
+        var module = new Module { Namespace = "Project.SiteA", SourcePath = "/x/site-a.module.json", Includes = [include] };
+        include.Module = module;
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigurationLoader.Select([module], [filter], []));
+        Assert.StartsWith($"The filter \"include: {filter}, exclude: \" did not match any defined serialization module configurations.", ex.Message);
+        Assert.Contains("\"Project.SiteA\"", ex.Message);
+    }
+
+    [Fact]
+    public void A_filter_matching_nothing_keeps_the_official_message()
+    {
+        var include = new Include { Name = "pages", Path = ItemPath.Parse("/sitecore/content/Site A") };
+        var module = new Module { Namespace = "Project.SiteA", SourcePath = "/x/site-a.module.json", Includes = [include] };
+        include.Module = module;
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigurationLoader.Select([module], ["Other"], []));
+        Assert.EndsWith("Use the info command to see valid module names.", ex.Message);
+    }
 }

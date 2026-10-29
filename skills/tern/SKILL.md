@@ -23,6 +23,7 @@ tern apply push.json                          # refuses if anything changed sinc
 - `--what-if` (`-w`) shows the changes without saving a Plan.
 - Exit code 3 means a saved Plan is out of date. Make a new one; never force it.
 - Push or apply only to the Endpoint the user named. `tern env list` shows Endpoints; a read-only one is marked.
+- A `ser diff` Plan applies between the Endpoints whose hosts it records; `apply` names them as it starts. Pass `-s` and `-d` when it says several share a host.
 - `ser diff --push` writes without a Plan; use `ser diff --plan-out` and `tern apply` instead.
 
 ## Commands that write without a Plan

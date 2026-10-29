@@ -35,6 +35,19 @@ public sealed record PlanOperation
     };
 }
 
+/// <summary>
+/// An Include the Plan was made with that no Module in the configuration defines, such as the one
+/// <c>ser diff --path</c> builds. Apply rebuilds it from here instead of looking it up.
+/// </summary>
+public sealed record PlanInclude
+{
+    public required string Module { get; init; }
+    public required string Name { get; init; }
+    public required string Path { get; init; }
+    public required string Database { get; init; }
+    public required string Scope { get; init; }
+}
+
 /// <summary>The exact list of changes a Pull, Push or Copy will make.</summary>
 public sealed class Plan
 {
@@ -46,6 +59,15 @@ public sealed class Plan
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public List<PlanOperation> Operations { get; init; } = [];
     public List<string> Warnings { get; init; } = [];
+
+    /// <summary>Includes that are not in the configuration; see <see cref="PlanInclude"/>.</summary>
+    public List<PlanInclude> AdHocIncludes { get; init; } = [];
+
+    /// <summary>
+    /// The fields left out of every Signature when the Plan was made, or null in a Plan saved before
+    /// they were recorded. Apply must leave out the same ones, or every Signature differs.
+    /// </summary>
+    public List<Guid>? ExcludedFields { get; set; }
 
     public int Count(PlanAction action) => Operations.Count(o => o.Action == action);
 

@@ -60,7 +60,7 @@ public static class PushRunner
         var result = await engine.PlanAsync(includes, request.Force, ct);
         SyncRunner.PrintPlan(output, result, endpoint.Name, page: request.WhatIf || request.PlanOut is not null);
         phases.End("compare");
-        var exit = await SyncRunner.FinishAsync(session, request, engine, result, includes, "ser push", watch, ct);
+        var exit = await SyncRunner.FinishAsync(session, request, engine, result, includes, excluded, "ser push", watch, ct);
         phases.End("apply");
         var security = new SecuritySync(new SecurityApi(api.Client), session.Root);
         await SyncRunner.RunSecurityAsync(output, "roles", "role", () => security.PlanRolePushAsync(modules, ct), request, ct);
@@ -143,7 +143,7 @@ public static class PushRunner
         SyncRunner.PrintPlan(output, result, targetEndpoint.Name, page: !request.Push);
         phases.End("compare");
         var syncRequest = new SyncRequest(null, request.Include, request.Exclude, WhatIf: !request.Push, false, true, request.PlanOut, false, []);
-        var exit = await SyncRunner.FinishAsync(session, syncRequest, engine, result, includes, "ser diff", watch, ct);
+        var exit = await SyncRunner.FinishAsync(session, syncRequest, engine, result, includes, excluded, "ser diff", watch, ct);
         phases.End("apply");
         SyncRunner.PrintElapsed(output, phases);
         return exit;

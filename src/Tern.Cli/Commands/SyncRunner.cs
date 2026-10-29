@@ -55,7 +55,7 @@ public static class SyncRunner
             throw new CliException("Discovered changes will not be applied." + Environment.NewLine + "Filesystem integrity validation found errors in serialized files! Use the validate command to fix these.");
         }
 
-        var exit = await FinishAsync(session, request, engine, result, includes, "ser pull", watch, ct);
+        var exit = await FinishAsync(session, request, engine, result, includes, excluded, "ser pull", watch, ct);
         if (!request.WhatIf && request.PlanOut is null)
         {
             // The Official CLI leaves a folder for every Include, even one with no items yet.
@@ -101,11 +101,24 @@ public static class SyncRunner
     public static Task<int> DiffAsync(Session session, DiffRequest request, CancellationToken ct) => PushRunner.DiffAsync(session, request, ct);
 
     /// <summary>Prints, saves or applies a Plan once it has been made.</summary>
-    internal static async Task<int> FinishAsync(Session session, SyncRequest request, SyncEngine engine, PlanResult result, IReadOnlyList<Include> includes, string command, Stopwatch watch, CancellationToken ct)
+    internal static async Task<int> FinishAsync(Session session, SyncRequest request, SyncEngine engine, PlanResult result, IReadOnlyList<Include> includes, IEnumerable<Guid> excluded, string command, Stopwatch watch, CancellationToken ct)
     {
         var output = session.Output;
         if (request.PlanOut is { } planFile)
         {
+            // Apply rebuilds the Includes and the Signatures from the configuration, so the Plan
+            // carries what the configuration can't give back: the excluded fields this command used,
+            // and any Include no Module defines.
+            result.Plan.ExcludedFields = [.. excluded.Distinct()];
+            var configured = session.AllModules.SelectMany(m => m.Includes).Select(i => (i.Module.Namespace, i.Name)).ToHashSet();
+            result.Plan.AdHocIncludes.AddRange(includes.Where(i => !configured.Contains((i.Module.Namespace, i.Name))).Select(i => new PlanInclude
+            {
+                Module = i.Module.Namespace,
+                Name = i.Name,
+                Path = i.Path.ToString(),
+                Database = i.Database,
+                Scope = i.Scope.ToString(),
+            }));
             await File.WriteAllBytesAsync(planFile, PlanJson.ToBytes(result.Plan), ct);
             output.Info($"Saved the Plan to {planFile}. Run `tern apply {planFile}` to carry it out.");
         }

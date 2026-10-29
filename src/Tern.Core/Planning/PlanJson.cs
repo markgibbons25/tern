@@ -26,6 +26,30 @@ public static class PlanJson
             w.WriteStringValue(warning);
         }
         w.WriteEndArray();
+        if (plan.ExcludedFields is { } excluded)
+        {
+            w.WriteStartArray("excludedFields");
+            foreach (var id in excluded)
+            {
+                w.WriteStringValue(id);
+            }
+            w.WriteEndArray();
+        }
+        if (plan.AdHocIncludes.Count > 0)
+        {
+            w.WriteStartArray("adHocIncludes");
+            foreach (var include in plan.AdHocIncludes)
+            {
+                w.WriteStartObject();
+                w.WriteString("module", include.Module);
+                w.WriteString("name", include.Name);
+                w.WriteString("path", include.Path);
+                w.WriteString("database", include.Database);
+                w.WriteString("scope", include.Scope);
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+        }
         w.WriteStartArray("operations");
         foreach (var op in plan.Operations)
         {
@@ -89,6 +113,24 @@ public static class PlanJson
         foreach (var warning in root.GetProperty("warnings").EnumerateArray())
         {
             plan.Warnings.Add(warning.GetString()!);
+        }
+        if (root.TryGetProperty("excludedFields", out var excluded))
+        {
+            plan.ExcludedFields = [.. excluded.EnumerateArray().Select(e => e.GetGuid())];
+        }
+        if (root.TryGetProperty("adHocIncludes", out var adHoc))
+        {
+            foreach (var i in adHoc.EnumerateArray())
+            {
+                plan.AdHocIncludes.Add(new PlanInclude
+                {
+                    Module = i.GetProperty("module").GetString()!,
+                    Name = i.GetProperty("name").GetString()!,
+                    Path = i.GetProperty("path").GetString()!,
+                    Database = i.GetProperty("database").GetString()!,
+                    Scope = i.GetProperty("scope").GetString()!,
+                });
+            }
         }
         foreach (var o in root.GetProperty("operations").EnumerateArray())
         {
