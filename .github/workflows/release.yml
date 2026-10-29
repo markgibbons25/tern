@@ -193,7 +193,7 @@ jobs:
             dotnet nuget push "$f" --api-key "$NUGET_API_KEY" --source "$source" --skip-duplicate
           done
 
-  # A GitHub Release for the tag, with notes generated from the commits since the last one and a
+  # A GitHub Release for the tag, with notes listing the commits since the last one and a
   # standalone binary for each RID. A manual run makes one only when asked, for a tag that already
   # exists (such as a release from before this job).
   github-release:
@@ -206,6 +206,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The whole history and its tags, to find the previous release and the commits since it.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v8
         with:
           pattern: binary-*
@@ -216,6 +221,25 @@ jobs:
         working-directory: release
         run: sha256sum * > SHA256SUMS
 
+      # One line per commit since the previous v* tag, leaving out the version bumps. GitHub's
+      # generated notes list only merged pull requests, and most changes here are committed directly.
+      - name: Write the notes
+        env:
+          TAG: v${{ needs.version.outputs.version }}
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+          {
+            echo "## What's changed"
+            echo
+            git log --no-merges --format='* %s (%h)' "${previous:+$previous..}$TAG" \
+              | grep -Ev '^\* v?[0-9]+\.[0-9]+\.[0-9]+ \([0-9a-f]+\)$' || true
+            if [ -n "$previous" ]; then
+              echo
+              echo "**Full Changelog**: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$previous...$TAG"
+            fi
+          } > notes.md
+          cat notes.md
+
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,5 +249,5 @@ jobs:
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" release/* --clobber
           else
-            gh release create "$TAG" release/* --verify-tag --title "Tern ${TAG#v}" --generate-notes
+            gh release create "$TAG" release/* --verify-tag --title "Tern ${TAG#v}" --notes-file notes.md
           fi
