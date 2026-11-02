@@ -39,7 +39,7 @@ public sealed class UpdateCheck
             return null;
         }
         var cached = ReadCache(CacheFile);
-        if (cached is { } c && IsFresh(c.CheckedAt, DateTimeOffset.UtcNow))
+        if (cached is { } c && IsFresh(c.CheckedAt, c.CheckedBy, current, DateTimeOffset.UtcNow))
         {
             return new UpdateCheck(current, Task.FromResult(c.Latest));
         }
@@ -77,7 +77,7 @@ public sealed class UpdateCheck
             using var doc = await JsonDocument.ParseAsync(stream);
             var versions = doc.RootElement.GetProperty("versions").EnumerateArray().Select(v => v.GetString()).OfType<string>();
             var latest = Latest(versions, includePrerelease: current.Contains('-', StringComparison.Ordinal));
-            WriteCache(CacheFile, DateTimeOffset.UtcNow, latest);
+            WriteCache(CacheFile, DateTimeOffset.UtcNow, current, latest);
             return latest;
         }
         catch (Exception)
@@ -86,7 +86,12 @@ public sealed class UpdateCheck
         }
     }
 
-    internal static bool IsFresh(DateTimeOffset checkedAt, DateTimeOffset now) => now - checkedAt < CheckEvery && checkedAt <= now;
+    /// <summary>
+    /// Whether a cached check can stand in for asking NuGet: it is less than a day old and was made by this version. An
+    /// upgrade asks again, since the version a check found may be older than the one now installed.
+    /// </summary>
+    internal static bool IsFresh(DateTimeOffset checkedAt, string? checkedBy, string current, DateTimeOffset now) =>
+        now - checkedAt < CheckEvery && checkedAt <= now && checkedBy == current;
 
     /// <summary>The highest version, leaving out prereleases unless <paramref name="includePrerelease"/>.</summary>
     internal static string? Latest(IEnumerable<string> versions, bool includePrerelease) =>
@@ -124,14 +129,15 @@ public sealed class UpdateCheck
         return Version.TryParse(number, out var v) ? (v, dash < 0 ? null : core[(dash + 1)..]) : null;
     }
 
-    internal static (DateTimeOffset CheckedAt, string? Latest)? ReadCache(string file)
+    internal static (DateTimeOffset CheckedAt, string? CheckedBy, string? Latest)? ReadCache(string file)
     {
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllBytes(file));
             var checkedAt = DateTimeOffset.Parse(doc.RootElement.GetProperty("checkedAt").GetString()!, CultureInfo.InvariantCulture);
+            var checkedBy = doc.RootElement.TryGetProperty("checkedBy", out var b) && b.ValueKind == JsonValueKind.String ? b.GetString() : null;
             var latest = doc.RootElement.TryGetProperty("latest", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() : null;
-            return (checkedAt, latest);
+            return (checkedAt, checkedBy, latest);
         }
         catch (Exception)
         {
@@ -139,7 +145,7 @@ public sealed class UpdateCheck
         }
     }
 
-    internal static void WriteCache(string file, DateTimeOffset checkedAt, string? latest)
+    internal static void WriteCache(string file, DateTimeOffset checkedAt, string checkedBy, string? latest)
     {
         try
         {
@@ -148,6 +154,7 @@ public sealed class UpdateCheck
             using var w = new Utf8JsonWriter(stream);
             w.WriteStartObject();
             w.WriteString("checkedAt", checkedAt.ToString("O", CultureInfo.InvariantCulture));
+            w.WriteString("checkedBy", checkedBy);
             w.WriteString("latest", latest);
             w.WriteEndObject();
         }

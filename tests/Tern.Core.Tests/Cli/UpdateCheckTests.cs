@@ -28,10 +28,20 @@ public class UpdateCheckTests
     public void A_check_is_fresh_for_a_day()
     {
         var now = DateTimeOffset.UtcNow;
-        Assert.True(UpdateCheck.IsFresh(now.AddHours(-23), now));
-        Assert.False(UpdateCheck.IsFresh(now.AddHours(-25), now));
+        Assert.True(UpdateCheck.IsFresh(now.AddHours(-23), "1.0.0", "1.0.0", now));
+        Assert.False(UpdateCheck.IsFresh(now.AddHours(-25), "1.0.0", "1.0.0", now));
         // A clock that went backwards doesn't keep a check fresh for ever.
-        Assert.False(UpdateCheck.IsFresh(now.AddDays(3), now));
+        Assert.False(UpdateCheck.IsFresh(now.AddDays(3), "1.0.0", "1.0.0", now));
+    }
+
+    [Fact]
+    public void An_upgrade_asks_again_instead_of_trusting_a_check_made_by_the_old_version()
+    {
+        var now = DateTimeOffset.UtcNow;
+        // 0.1.8 found 0.1.8 an hour ago; 1.0.0, installed since, mustn't take that as the latest.
+        Assert.False(UpdateCheck.IsFresh(now.AddHours(-1), "0.1.8", "1.0.0", now));
+        // A cache written before the version was recorded.
+        Assert.False(UpdateCheck.IsFresh(now.AddHours(-1), null, "1.0.0", now));
     }
 
     [Fact]
@@ -41,8 +51,8 @@ public class UpdateCheckTests
         try
         {
             var at = new DateTimeOffset(2026, 10, 27, 1, 2, 3, TimeSpan.Zero);
-            UpdateCheck.WriteCache(file, at, "0.1.7");
-            Assert.Equal((at, "0.1.7"), UpdateCheck.ReadCache(file));
+            UpdateCheck.WriteCache(file, at, "0.1.6", "0.1.7");
+            Assert.Equal((at, "0.1.6", "0.1.7"), UpdateCheck.ReadCache(file));
 
             File.WriteAllText(file, "{ not json");
             Assert.Null(UpdateCheck.ReadCache(file));
