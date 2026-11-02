@@ -13,7 +13,7 @@ public static class PublishCommands
     public static Command Build()
     {
         var environment = CommonOptions.EnvironmentName();
-        var languages = new Option<string[]>("--languages", "-l") { Description = "Languages to publish", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
+        var languages = new Option<string[]>("--languages", "-l") { Description = "Languages to publish; all languages when omitted", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
         var path = new Option<string?>("--path", "-p") { Description = "Item path to publish (deprecated; use `publish item`)" };
         var republish = new Option<bool>("--republish", "-r") { Description = "Republish everything instead of only changes" };
         var targets = new Option<string[]>("--targets", "--pt") { Description = "Publishing targets", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
@@ -32,7 +32,7 @@ public static class PublishCommands
         var itemPath = new Option<string>("--path", "-p") { Description = "Item path to publish", Required = true };
         var sub = new Option<bool>("--subitems", "-sub") { Description = "Publish subitems too" };
         var related = new Option<bool>("--related", "-rel") { Description = "Publish related items too" };
-        var itemLanguages = new Option<string[]>("--languages", "-l") { Description = "Languages to publish", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
+        var itemLanguages = new Option<string[]>("--languages", "-l") { Description = "Languages to publish; all languages when omitted", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
         var itemRepublish = new Option<bool>("--republish", "-r") { Description = "Republish instead of only changes" };
         var itemTargets = new Option<string[]>("--targets", "--pt") { Description = "Publishing targets", AllowMultipleArgumentsPerToken = true, DefaultValueFactory = _ => [] };
         var item = new Command("item", "Publish one item") { itemEnv, itemPath, sub, related, itemLanguages, itemRepublish, itemTargets };

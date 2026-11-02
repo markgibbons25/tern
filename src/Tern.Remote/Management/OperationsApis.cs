@@ -31,8 +31,8 @@ public sealed class PublishingApi(ManagementClient client)
         using var doc = await client.QueryAsync(query, w =>
         {
             WriteNullable(w, "path", path);
-            WriteArray(w, "languages", languages);
-            WriteArray(w, "itemIds", itemIds);
+            WriteArrayIfAny(w, "languages", languages);
+            WriteArrayIfAny(w, "itemIds", itemIds);
             w.WriteBoolean("republish", republish);
             WriteNullable(w, "target", target);
         }, ct);
@@ -45,7 +45,7 @@ public sealed class PublishingApi(ManagementClient client)
         using var doc = await client.QueryAsync(query, w =>
         {
             w.WriteString("path", path);
-            WriteArray(w, "languages", languages);
+            WriteArrayIfAny(w, "languages", languages);
             w.WriteBoolean("republish", republish);
             WriteNullable(w, "target", target);
             w.WriteBoolean("related", related);
@@ -86,6 +86,18 @@ public sealed class PublishingApi(ManagementClient client)
             w.WriteStringValue(v);
         }
         w.WriteEndArray();
+    }
+
+    /// <summary>
+    /// Leaves the variable out when there are no values. The publish mutations read a missing <c>languages</c> as every
+    /// language but an empty list as none, so a publish without <c>-l</c> would process nothing; the Official CLI omits it too.
+    /// </summary>
+    internal static void WriteArrayIfAny(Utf8JsonWriter w, string name, IReadOnlyList<string> values)
+    {
+        if (values.Count > 0)
+        {
+            WriteArray(w, name, values);
+        }
     }
 
     internal static List<string> Strings(JsonElement e) =>
