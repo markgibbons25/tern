@@ -335,7 +335,8 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
 
     /// <summary>
     /// Creates first, then everything else, then <c>__Standard Values</c> creates, then deletes.
-    /// A delete at the same path as a create runs first, so the create has somewhere to go.
+    /// A delete at the same path as a create runs first, so the create has somewhere to go; a move
+    /// or rename away from a create's path runs before it too (see <see cref="Interleave"/>).
     /// </summary>
     private static List<PlanOperation> Order(List<PlanOperation> operations, List<PlanOperation> deletes)
     {
@@ -368,7 +369,105 @@ public sealed class Planner(IItemTree source, IItemTree target, bool applyPushOp
             }
             deletes.RemoveAll(d => removed.Contains(d.Id));
         }
-        return [.. samePath, .. creates, .. others, .. standardValues, .. deletes];
+        return [.. samePath, .. Interleave(creates, others), .. standardValues, .. deletes];
+    }
+
+    /// <summary>
+    /// Creates before everything else, except a create at or below the old path of a move or rename,
+    /// which waits until that item has left: the item files are found by path, so a create there
+    /// first would overwrite the moving item's file and be carried off with it. An operation that
+    /// puts an item below a waiting create waits for it in turn. Otherwise the order is unchanged.
+    /// </summary>
+    private static List<PlanOperation> Interleave(List<PlanOperation> creates, List<PlanOperation> others)
+    {
+        var leaving = Counts(others.Where(o => o.Action is PlanAction.Move or PlanAction.Rename && o.TargetPath is not null).Select(o => ItemPath.Parse(o.TargetPath!)));
+        if (leaving.Count == 0 || !creates.Any(c => AncestorsOrSelf(ItemPath.Parse(c.Path)).Any(leaving.ContainsKey)))
+        {
+            return [.. creates, .. others];
+        }
+        var waiting = Counts(creates.Select(c => ItemPath.Parse(c.Path)));
+        var result = new List<PlanOperation>(creates.Count + others.Count);
+        var pendingCreates = creates;
+        var nextOther = 0;
+        while (pendingCreates.Count > 0 || nextOther < others.Count)
+        {
+            var progress = false;
+            var blocked = new List<PlanOperation>();
+            foreach (var create in pendingCreates)
+            {
+                var path = ItemPath.Parse(create.Path);
+                if (AncestorsOrSelf(path).Any(leaving.ContainsKey))
+                {
+                    blocked.Add(create);
+                    continue;
+                }
+                result.Add(create);
+                Release(waiting, path);
+                progress = true;
+            }
+            pendingCreates = blocked;
+            // Others keep their order: a parent's move or rename runs before its children's.
+            for (; nextOther < others.Count; nextOther++)
+            {
+                var op = others[nextOther];
+                if (AncestorsOrSelf(ItemPath.Parse(op.Path).Parent).Any(waiting.ContainsKey))
+                {
+                    break;
+                }
+                result.Add(op);
+                if (op.Action is PlanAction.Move or PlanAction.Rename && op.TargetPath is not null)
+                {
+                    Release(leaving, ItemPath.Parse(op.TargetPath));
+                }
+                progress = true;
+            }
+            if (!progress)
+            {
+                // Each waits on the other, such as an item moved below a new item created where it
+                // used to be. The usual order is left as it was.
+                result.AddRange(pendingCreates);
+                result.AddRange(others.Skip(nextOther));
+                break;
+            }
+        }
+        return result;
+    }
+
+    private static Dictionary<ItemPath, int> Counts(IEnumerable<ItemPath> paths)
+    {
+        var counts = new Dictionary<ItemPath, int>();
+        foreach (var path in paths)
+        {
+            counts[path] = counts.GetValueOrDefault(path) + 1;
+        }
+        return counts;
+    }
+
+    private static void Release(Dictionary<ItemPath, int> counts, ItemPath path)
+    {
+        if (counts.TryGetValue(path, out var n))
+        {
+            if (n <= 1)
+            {
+                counts.Remove(path);
+            }
+            else
+            {
+                counts[path] = n - 1;
+            }
+        }
+    }
+
+    private static IEnumerable<ItemPath> AncestorsOrSelf(ItemPath path)
+    {
+        for (var p = path; ; p = p.Parent)
+        {
+            yield return p;
+            if (p.Count == 0)
+            {
+                yield break;
+            }
+        }
     }
 
     private static Dictionary<Guid, List<ItemMetadata>> ChildrenIndex(IEnumerable<ItemMetadata> items)

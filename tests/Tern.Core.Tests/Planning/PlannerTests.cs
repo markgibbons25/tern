@@ -128,6 +128,28 @@ public class PlannerTests
         Assert.Equal([G(9), G(2), G(3), G(4)], ops.Select(o => o.Id));
     }
 
+    [Fact]
+    public async Task A_create_where_an_item_moved_away_waits_for_the_move()
+    {
+        // X moved under a new item, and another new item took its old path: the move needs New
+        // created first, and the new X needs the old one gone.
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(5, 1, "/sitecore/content/Site/New"), M(2, 5, "/sitecore/content/Site/New/X", "new"), M(6, 1, "/sitecore/content/Site/X"), M(7, 6, "/sitecore/content/Site/X/Child")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/X", "old")]);
+        var ops = await Plan(source, target, Include());
+        Assert.Equal(
+            ["Create /sitecore/content/Site/New", "Move /sitecore/content/Site/X -> /sitecore/content/Site/New/X", "Update /sitecore/content/Site/New/X", "Create /sitecore/content/Site/X", "Create /sitecore/content/Site/X/Child"],
+            ops.Select(o => o.ToString()));
+    }
+
+    [Fact]
+    public async Task A_create_where_an_item_was_renamed_away_waits_for_the_rename()
+    {
+        var source = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Old"), M(3, 1, "/sitecore/content/Site/Page")]);
+        var target = new MemoryTree([M(1, 0, "/sitecore/content/Site"), M(2, 1, "/sitecore/content/Site/Page")]);
+        var ops = await Plan(source, target, Include());
+        Assert.Equal(["Rename /sitecore/content/Site/Page -> /sitecore/content/Site/Old", "Create /sitecore/content/Site/Page"], ops.Select(o => o.ToString()));
+    }
+
     private static async Task<List<PlanOperation>> PlanItems(MemoryTree source, MemoryTree target, Include include, int[] ids, params int[] subtrees)
     {
         var planner = new Planner(source, target, applyPushOperations: false, force: true);

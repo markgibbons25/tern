@@ -2,6 +2,7 @@ using Tern.Core.Configuration;
 using Tern.Core.Items;
 using Tern.Core.Planning;
 using Tern.Core.Trees;
+using Tern.Core.Validation;
 
 namespace Tern.Core.Tests.Trees;
 
@@ -106,6 +107,36 @@ public sealed class FileItemTreeTests : IDisposable
         Assert.DoesNotContain(Directory.EnumerateDirectories(_include.PhysicalRoot, "*", SearchOption.AllDirectories), d => !Directory.EnumerateFileSystemEntries(d).Any());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deviation_D13_a_pull_that_creates_an_item_where_another_moved_away_keeps_both(bool changed)
+    {
+        Pull(Item(1, 0, "/sitecore/content/Site", "Root"), Item(2, 1, "/sitecore/content/Site/X", "A"),
+            Item(3, 2, "/sitecore/content/Site/X/Data", "Data"), Item(4, 3, "/sitecore/content/Site/X/Data/Leaf", "Leaf"));
+        var files = new FileItemTree(IncludeField, index: Index());
+        var signatures = files.Files(_include).ToDictionary(f => f.Id, f => f.Signature);
+
+        // On the CM: New created, X (A) moved under it, and a different item B created at X's old path.
+        var source = new[]
+        {
+            Item(1, 0, "/sitecore/content/Site", "Root"), Item(5, 1, "/sitecore/content/Site/New", "New"), Item(2, 5, "/sitecore/content/Site/New/X", changed ? "A changed" : "A"),
+            Item(3, 2, "/sitecore/content/Site/New/X/Data", "Data"), Item(4, 3, "/sitecore/content/Site/New/X/Data/Leaf", "Leaf"), Item(6, 1, "/sitecore/content/Site/X", "B"),
+        };
+        var cm = new MetadataTree(source.Select(i => new ItemMetadata(i.Id, i.ParentId, i.TemplateId, i.Path, changed && i.Id == G(2) ? "changed" : signatures.GetValueOrDefault(i.Id, "new"))).ToList());
+        var ops = (await new Planner(cm, files, false, false).PlanIncludeAsync(_include, [], CancellationToken.None)).Operations;
+        new FileApplier(files, IncludeField).Apply(_include, ops, source.ToDictionary(i => i.Id), checkPreconditions: false);
+
+        var fromDisk = new FileItemTree(IncludeField).Files(_include).ToDictionary(f => f.Id);
+        Assert.Equal(Path.Join(_include.PhysicalRoot, "Site", "X.yml"), fromDisk[G(6)].PhysicalPath);
+        Assert.Equal(G(1), fromDisk[G(6)].ParentId);
+        Assert.Equal(Path.Join(_include.PhysicalRoot, "Site", "New", "X.yml"), fromDisk[G(2)].PhysicalPath);
+        Assert.Equal(G(5), fromDisk[G(2)].ParentId);
+        Assert.Equal("/sitecore/content/Site/New/X/Data/Leaf", fromDisk[G(4)].Path);
+        Assert.Equal(6, fromDisk.Count);
+        Assert.Empty(FileValidator.Validate([_include], new FileItemTree(IncludeField)));
+    }
+
     [Fact]
     public void Deviation_D12_an_item_the_source_returns_no_data_for_is_skipped_and_the_rest_written()
     {
@@ -150,5 +181,23 @@ public sealed class FileItemTreeTests : IDisposable
         var item = (await tree.GetItemsAsync(_include, [G(1)], CancellationToken.None))[G(1)];
         Assert.Equal("Root", item.Languages.Single().Versions.Single().Fields.Single().Value);
         Assert.DoesNotContain(item.AllFields, f => f.Id == Thumbnail);
+    }
+
+    /// <summary>A CM's item list held in memory, for planning against the files.</summary>
+    private sealed class MetadataTree(IReadOnlyList<ItemMetadata> items) : IItemTree
+    {
+        public string Description => "memory";
+
+        public Task<IReadOnlyList<ItemMetadata>> GetMetadataAsync(Include include, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ItemMetadata>>(items.Where(i => i.ItemPath.IsDescendantOrSelfOf(include.Path)).ToList());
+
+        public Task<IReadOnlyList<ItemMetadata>> GetByIdsAsync(Include include, IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ItemMetadata>>(items.Where(i => ids.Contains(i.Id)).ToList());
+
+        public Task<IReadOnlyList<ItemMetadata>> GetChildrenAsync(Include include, IReadOnlyCollection<Guid> parentIds, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ItemMetadata>>(items.Where(i => parentIds.Contains(i.ParentId)).ToList());
+
+        public Task<IReadOnlyDictionary<Guid, ItemData>> GetItemsAsync(Include include, IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, ItemData>>(new Dictionary<Guid, ItemData>());
     }
 }
