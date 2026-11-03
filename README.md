@@ -99,6 +99,10 @@ Each difference from the Sitecore CLI is listed and tested ([deviations](docs/de
 - **Switching is a find-and-replace.** Install `Tern.Cli` and replace `dotnet sitecore` with `tern` in your scripts; the arguments stay the same.
 - **Proven side by side.** Pulls, pushes and resource packages are tested against the Sitecore CLI for identical results, and Tern has every one of its 83 commands ([testing](docs/testing.md)). Tern differs only where the Sitecore CLI fails, and each such case is listed and tested ([deviations](docs/deviations.md)).
 
+### Why .NET
+
+Because it meets or exceeds languages such as Rust or Go for a tool like this. Tern is C# compiled ahead of time with .NET Native AOT, so it gets what people usually pick Rust or Go for: one self-contained executable, startup in milliseconds, no runtime to install and little memory. Most of a CLI's time goes on HTTP, JSON and file I/O, where .NET's async I/O, `System.Text.Json` and vectorised string handling are as fast as anything available. And C# is the language the Sitecore community already writes, so anyone who works with Sitecore can read Tern and contribute to it.
+
 ## Install
 
 ### Quickly switch with an AI agent
