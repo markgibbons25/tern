@@ -8,6 +8,7 @@ using Tern.Core.Configuration;
 using Tern.Core.ItemFiles;
 using Tern.Core.Items;
 using Tern.Core.Signatures;
+using Tern.Core.Trees;
 using Tern.Remote.Management;
 
 namespace Tern.Cli.Commands;
@@ -38,10 +39,14 @@ public static class ItemCommands
         {
             var api = session.Serialization(session.Endpoint(parse.GetValue(environment)));
             var request = new SerializeRequest(parse.GetValue(target)!, parse.GetValue(database)!, TreeScope.SingleItem, []);
-            var items = await GetSingleAsync(api, request, token);
-            if (items is null)
+            var (found, items) = await GetSingleAsync(api, request, token);
+            if (found is null)
             {
                 throw new CliException($"{request.PathOrId} was not found in the {request.Database} database.");
+            }
+            if (items is null)
+            {
+                throw new CliException(NoDataMessage(found, request.Database));
             }
             if (session.Output.Json || parse.GetValue(format)!.Equals("json", StringComparison.OrdinalIgnoreCase))
             {
@@ -66,17 +71,22 @@ public static class ItemCommands
         return cmd;
     }
 
-    private static async Task<ItemData?> GetSingleAsync(SerializationApi api, SerializeRequest request, CancellationToken ct)
+    /// <summary>The item's metadata, null when it doesn't exist, and its data, null when the CM returned none.</summary>
+    private static async Task<(ItemMetadata? Found, ItemData? Data)> GetSingleAsync(SerializationApi api, SerializeRequest request, CancellationToken ct)
     {
         var metadata = await api.GetMetadataAsync([request], ct);
         var found = metadata[0].Count > 0 ? metadata[0][0] : null;
         if (found is null)
         {
-            return null;
+            return (null, null);
         }
         var data = await api.GetItemDataAsync(request.Database, [found.Id], request.ExcludedFieldIds, ct);
-        return data.GetValueOrDefault(found.Id);
+        return (found, data.GetValueOrDefault(found.Id));
     }
+
+    /// <summary>For an item the CM lists but returns no data for: it exists, and why it can't be read.</summary>
+    internal static string NoDataMessage(ItemMetadata item, string database) =>
+        $"{item.Path} ({item.Id}) exists in the {database} database, but Management Services returned no data for it. {NoItemData.Reason}";
 
     private static Command Query()
     {
@@ -116,10 +126,20 @@ public static class ItemCommands
             }).ToList();
             var showFields = parse.GetValue(show)!;
             Dictionary<Guid, ItemData> data = [];
+            List<ItemMetadata> unreadable = [];
             if (fieldFilters.Count > 0 || showFields.Length > 0)
             {
                 data = (await api.GetItemDataAsync(db, candidates.Select(c => c.Id).ToList(), [], token)).ToDictionary();
-                candidates = candidates.Where(c => data.TryGetValue(c.Id, out var item) && fieldFilters.All(f => FieldValues(item, f.Field).Any(v => Wildcard.IsMatch(v, f.Pattern)))).ToList();
+                // An item the CM listed but returned no data for can't be matched on its fields; with
+                // only --show it is still listed, without them. Either way it is named, not dropped silently.
+                unreadable = candidates.Where(c => !data.ContainsKey(c.Id)).ToList();
+                foreach (var c in unreadable)
+                {
+                    session.Output.Warn(NoDataMessage(c, db) + (fieldFilters.Count > 0 ? " It is left out, as its fields can't be matched." : " It is listed without fields."));
+                }
+                candidates = candidates.Where(c => data.TryGetValue(c.Id, out var item)
+                    ? fieldFilters.All(f => FieldValues(item, f.Field).Any(v => Wildcard.IsMatch(v, f.Pattern)))
+                    : fieldFilters.Count == 0).ToList();
             }
             var max = parse.GetValue(limit);
             if (max > 0)
@@ -143,13 +163,33 @@ public static class ItemCommands
                         w.WriteStartObject("fields");
                         foreach (var f in showFields)
                         {
-                            w.WriteString(f, FieldValues(item, f).FirstOrDefault());
+                            if (FieldValues(item, f).FirstOrDefault() is { } value)
+                            {
+                                ItemDataJson.WriteString(w, f, value);
+                            }
+                            else
+                            {
+                                w.WriteNull(f);
+                            }
                         }
                         w.WriteEndObject();
                     }
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();
+                if (unreadable.Count > 0)
+                {
+                    // Items the CM listed but returned no data for, so their fields weren't read.
+                    w.WriteStartArray("noData");
+                    foreach (var c in unreadable)
+                    {
+                        w.WriteStartObject();
+                        w.WriteString("id", c.Id);
+                        w.WriteString("path", c.Path);
+                        w.WriteEndObject();
+                    }
+                    w.WriteEndArray();
+                }
             });
             foreach (var c in candidates)
             {

@@ -5,6 +5,7 @@ using Tern.Core.Configuration;
 using Tern.Core.Items;
 using Tern.Core.Planning;
 using Tern.Core.Signatures;
+using Tern.Core.Trees;
 
 namespace Tern.Remote.Management;
 
@@ -34,7 +35,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         {
             await CheckPreconditionsAsync(include, operations, ct);
         }
-        return await SendAsync(include, operations, sourceItems, ct);
+        return await SendAsync(include, operations, sourceItems, [], ct);
     }
 
     /// <summary>
@@ -48,6 +49,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
             await CheckPreconditionsAsync(include, operations, ct);
         }
         var applied = new List<AppliedOperation>();
+        var notCreated = new HashSet<Guid>();
         foreach (var chunk in operations.Chunk(Math.Max(1, batchSize)))
         {
             var ids = chunk.Where(o => o.Action is PlanAction.Create or PlanAction.Update).Select(o => o.Id).ToHashSet();
@@ -63,32 +65,52 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
                     return Task.CompletedTask;
                 });
             }
-            applied.AddRange(await SendAsync(include, chunk, data, ct));
+            applied.AddRange(await SendAsync(include, chunk, data, notCreated, ct));
         }
         return applied;
     }
 
-    private async Task<List<AppliedOperation>> SendAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, CancellationToken ct)
+    /// <summary>
+    /// Sends the operations. One whose item the source or the CM returned no data for is skipped,
+    /// with why, rather than stopping the push. A skipped create goes into <paramref name="notCreated"/>, so creates and moves under it,
+    /// which the CM would reject, are skipped too.
+    /// </summary>
+    private async Task<List<AppliedOperation>> SendAsync(Include include, IReadOnlyList<PlanOperation> operations, IReadOnlyDictionary<Guid, ItemData> sourceItems, HashSet<Guid> notCreated, CancellationToken ct)
     {
-        var updates = operations.Where(o => o.Action == PlanAction.Update).Select(o => o.Id).Distinct().ToList();
+        var updates = operations.Where(o => o.Action == PlanAction.Update && sourceItems.ContainsKey(o.Id)).Select(o => o.Id).Distinct().ToList();
         var targetData = updates.Count == 0 ? new Dictionary<Guid, ItemData>() : await api.GetItemDataAsync(include.Database, updates, excludedFieldIds, ct);
         var currentParents = await CurrentParentsAsync(include, operations.Where(o => o.Action == PlanAction.Move).ToList(), ct);
-
-        ItemData Source(PlanOperation op) => sourceItems.GetValueOrDefault(op.Id)
-            ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be {(op.Action == PlanAction.Create ? "created" : "updated")}, in source data store. This should never occur.");
 
         // A command's size is known (or, for a create, estimated) up front, so a batch can be cut by
         // size as well as count; a create's data is serialized only as its request is written.
         var commands = new List<Command>();
+        var applied = new List<AppliedOperation>();
         void Add(PlanOperation op, Guid parent, string command, string data) =>
             commands.Add(new Command(op, data.Length + 200, w => WriteCommand(w, op.Id, parent, include.Database, command, data)));
+        void Skip(AppliedOperation skipped)
+        {
+            if (skipped.Operation.Action == PlanAction.Create)
+            {
+                notCreated.Add(skipped.Operation.Id);
+            }
+            applied.Add(skipped);
+        }
         foreach (var op in operations)
         {
+            if (op.Action is PlanAction.Create or PlanAction.Move && notCreated.Contains(op.ParentId))
+            {
+                Skip(AppliedOperation.ParentSkipped(op));
+                continue;
+            }
             switch (op.Action)
             {
                 case PlanAction.Create:
                     {
-                        var item = Source(op);
+                        if (sourceItems.GetValueOrDefault(op.Id) is not { } item)
+                        {
+                            Skip(AppliedOperation.NoSourceData(op));
+                            break;
+                        }
                         WarnEmptyVersions(item);
                         commands.Add(new Command(op, item.AllFields.Sum(f => (long)f.Value.Length + 100) + 200,
                             w => WriteCommand(w, op.Id, item.ParentId, include.Database, "CREATE", Serialize(x => ItemDataJson.Write(x, item)))));
@@ -96,8 +118,16 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
                     }
                 case PlanAction.Update:
                     {
-                        var source = Source(op);
-                        var target = targetData.GetValueOrDefault(op.Id) ?? throw new InvalidOperationException($"Unable to find item data for {op.Path} ({op.Id}), flagged to be updated, in the CM.");
+                        if (sourceItems.GetValueOrDefault(op.Id) is not { } source)
+                        {
+                            Skip(AppliedOperation.NoSourceData(op));
+                            break;
+                        }
+                        if (targetData.GetValueOrDefault(op.Id) is not { } target)
+                        {
+                            Skip(new AppliedOperation(op, null, $"No data was fetched for {op.Path} ({op.Id}) from {api.Client.Host}, so it was not updated. The CM listed the item but returned no data for it. {NoItemData.Reason}"));
+                            break;
+                        }
                         WarnEmptyVersions(source);
                         var payload = UpdatePayload(source, target);
                         if (payload is null)
@@ -127,7 +157,6 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         // One batch at a time: the CM's executeSerializationCommands is not safe to run concurrently
         // (two batches at once fail inside the server with NullReferenceException and
         // ArgumentOutOfRangeException, and can leave a batch half written).
-        var applied = new List<AppliedOperation>();
         foreach (var batch in Batches(commands))
         {
             foreach (var message in await SendBatchAsync(batch, ct))
@@ -377,7 +406,7 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
     {
         w.WriteStartObject();
         w.WriteString("fieldId", Format(f.Id));
-        w.WriteString("value", f.Value);
+        ItemDataJson.WriteString(w, "value", f.Value);
         if (f.BlobId is { } blob)
         {
             w.WriteString("blobId", Format(blob));
@@ -419,18 +448,19 @@ public sealed class CmApplier(SerializationApi api, IReadOnlyList<Guid> excluded
         w.WriteString("parentID", Format(parentId));
         w.WriteString("database", database);
         w.WriteString("command", command);
-        w.WriteString("data", data);
+        // The item's JSON as one string: for a large media item, longer than one call can write.
+        ItemDataJson.WriteString(w, "data", data);
         w.WriteEndObject();
     }
 
     private static string Serialize(Action<Utf8JsonWriter> write)
     {
         using var stream = new MemoryStream();
-        using (var w = new Utf8JsonWriter(stream))
+        using (var w = new Utf8JsonWriter(stream, ManagementClient.RequestJson))
         {
             write(w);
         }
-        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+        return System.Text.Encoding.UTF8.GetString(stream.GetBuffer().AsSpan(0, (int)stream.Length));
     }
 
     private static string Format(Guid id) => id.ToString("D", CultureInfo.InvariantCulture);

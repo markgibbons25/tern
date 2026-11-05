@@ -11,7 +11,16 @@ namespace Tern.Core.Planning;
 public sealed class PlanOutOfDateException(string message) : Exception(message);
 
 /// <summary>An operation the applier carried out, or, with <paramref name="Skipped"/>, why it left it out.</summary>
-public sealed record AppliedOperation(PlanOperation Operation, string? File, string? Skipped = null);
+public sealed record AppliedOperation(PlanOperation Operation, string? File, string? Skipped = null)
+{
+    /// <summary>A create or update left out because the source returned no data for its item.</summary>
+    public static AppliedOperation NoSourceData(PlanOperation op) => new(op, null,
+        $"No source data was fetched for {op.Path} ({op.Id}), so it was skipped. The source listed the item but returned no data for it. {NoItemData.Reason} The item may also have been moved or deleted since it was listed.");
+
+    /// <summary>A create or move left out because the create of its parent was.</summary>
+    public static AppliedOperation ParentSkipped(PlanOperation op) => new(op, null,
+        $"{op.Path} ({op.Id}) was skipped because its parent ({op.ParentId}) was not created.");
+}
 
 /// <summary>
 /// Carries out the file side of a Plan: the last step of a Pull. Moves and renames rewrite the
@@ -134,7 +143,7 @@ public sealed class FileApplier(FileItemTree files, Func<Guid, bool> includeFiel
                             // unreadable item, such as a media item the CM can't serialize, is left out instead.
                             if (!arrived.TryGetValue(o.Id, out var w))
                             {
-                                applied.Add(new AppliedOperation(o, null, $"No source data was fetched for {o.Path} ({o.Id}), so it was skipped. The source listed it but did not return its data; it may have been moved or deleted since the plan was made, or the source cannot read it."));
+                                applied.Add(AppliedOperation.NoSourceData(o));
                                 continue;
                             }
                             if (index.TryGetValue(o.Id, out var old) && !newFiles.Contains(old.File) && File.Exists(old.File))

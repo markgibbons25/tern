@@ -122,10 +122,19 @@ public sealed class ManagementClient
         return (response.StatusCode, bytes);
     }
 
+    /// <summary>
+    /// How request JSON is written: escaping only what JSON needs, as the Official CLI does. The
+    /// default encoder writes a quote as <c>"</c> and a base64 <c>+</c> as <c>+</c>,
+    /// which in a CREATE command, whose item JSON is itself a string, makes a large media item's
+    /// request about 10% bigger: enough, for a 236 MB blob, for the CM to answer OutOfMemoryException
+    /// to a create the Official CLI's smaller request carries out.
+    /// </summary>
+    internal static readonly JsonWriterOptions RequestJson = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     private static byte[] BuildBody(string query, Action<Utf8JsonWriter>? writeVariables)
     {
         using var stream = new MemoryStream();
-        using (var w = new Utf8JsonWriter(stream))
+        using (var w = new Utf8JsonWriter(stream, RequestJson))
         {
             w.WriteStartObject();
             w.WriteString("query", query);

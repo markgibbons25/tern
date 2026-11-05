@@ -21,6 +21,18 @@ public sealed record ItemMetadata(Guid Id, Guid ParentId, Guid TemplateId, strin
     public ItemPath ItemPath => ItemPath.Parse(Path);
 }
 
+/// <summary>What to say about an item a tree lists but returns no data for.</summary>
+public static class NoItemData
+{
+    /// <summary>
+    /// Why a CM lists an item yet returns no data for it: <c>serialize { data }</c> answers
+    /// <c>data: null</c>, with no error, for an item it cannot serialize. A media item with a blob
+    /// of a few hundred MB is one, when it shares a request with another; it can come back whole
+    /// alone, so the CM tree asks again for such an item on its own before reporting it.
+    /// </summary>
+    public const string Reason = "Management Services does this, with no error, for an item it cannot serialize, such as a media item with a very large blob.";
+}
+
 /// <summary>
 /// An item tree: Item files on disk or a CM. The Plan engine compares any two of them (ADR 0010).
 /// </summary>

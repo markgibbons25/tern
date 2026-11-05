@@ -113,7 +113,10 @@ public static class WatchCommand
                         {
                             output.Line($"[{op.Database}] {SyncRunner.Describe(op)}", SyncRunner.ColorOf(op.Action));
                         }
-                        await engine.ApplyAsync(result.Plan, affected, checkPreconditions: false, stop.Token);
+                        foreach (var skipped in (await engine.ApplyAsync(result.Plan, affected, checkPreconditions: false, stop.Token)).Where(a => a.Skipped is not null))
+                        {
+                            output.Warn($"[{skipped.Operation.Database}] {skipped.Skipped}");
+                        }
                         output.Debug($"Watch: {entries.Count} history entries; poll {polled} ms, plan {planned - polled} ms ({result.NodesEvaluated} items), apply {phase.ElapsedMilliseconds - planned} ms.");
                         // Give the file watcher time to deliver our own writes before listening again.
                         await Task.Delay(250, stop.Token);

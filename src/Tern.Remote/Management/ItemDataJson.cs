@@ -7,6 +7,44 @@ namespace Tern.Remote.Management;
 /// <summary>Converts between <see cref="ItemData"/> and the JSON item shape Management Services uses.</summary>
 public static class ItemDataJson
 {
+    /// <summary>
+    /// The longest string, in characters, <see cref="Utf8JsonWriter"/> writes in one call; a longer
+    /// one throws <see cref="ArgumentException"/>. A media blob of about 125 MB is that long in base64.
+    /// </summary>
+    public const int MaxStringLength = 1_000_000_000 / 6;
+
+    /// <summary>The characters written per segment of a string longer than <see cref="MaxStringLength"/>.</summary>
+    private const int SegmentLength = 16 * 1024 * 1024;
+
+    /// <summary>
+    /// Writes a property with a string value however long. A value up to
+    /// <paramref name="maxLength"/> characters is written in one call, as any other; a longer one,
+    /// such as the base64 of a media blob of a few hundred MB, goes in segments, which
+    /// <see cref="Utf8JsonWriter"/> takes whatever their total.
+    /// </summary>
+    public static void WriteString(Utf8JsonWriter w, string name, string value, int maxLength = MaxStringLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            w.WriteString(name, value);
+            return;
+        }
+        w.WritePropertyName(name);
+        var rest = value.AsSpan();
+        var segment = Math.Min(SegmentLength, maxLength);
+        while (rest.Length > 0)
+        {
+            var length = Math.Min(segment, rest.Length);
+            // A surrogate pair stays in one segment, even one that is the whole segment.
+            if (length < rest.Length && char.IsHighSurrogate(rest[length - 1]))
+            {
+                length = length > 1 ? length - 1 : 2;
+            }
+            w.WriteStringValueSegment(rest[..length], isFinalSegment: length == rest.Length);
+            rest = rest[length..];
+        }
+    }
+
     public static ItemData Parse(JsonElement e)
     {
         var item = new ItemData
@@ -125,7 +163,7 @@ public static class ItemDataJson
         {
             w.WriteString("nameHint", f.Hint);
         }
-        w.WriteString("value", f.Value);
+        WriteString(w, "value", f.Value);
         if (f.BlobId is { } blobId)
         {
             w.WriteString("blobId", blobId);

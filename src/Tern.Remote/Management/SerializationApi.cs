@@ -125,22 +125,18 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
             try
             {
                 // Built once a slot is free, so a large pull doesn't hold every query in memory at once.
-                var (query, variables) = BuildQuery(batch.Select(i => requests[i]).ToList(), metadata);
-                using (var doc = await client.QueryAsync(query, variables, ct))
+                parsed = await SendAsync(batch.Select(i => requests[i]).ToList(), metadata, parse, ct);
+                if (!metadata && batch.Count > 1)
                 {
-                    var data = doc.RootElement.GetProperty("data");
-                    parsed = new IReadOnlyList<T>[batch.Count];
+                    // The CM can answer data: null, with no error, for an item it returns whole when
+                    // asked for alone: seen with two media items of a few hundred MB in one request.
+                    // Such an item is asked for again on its own, still in this request's slot.
                     for (var n = 0; n < batch.Count; n++)
                     {
-                        var list = new List<T>();
-                        if (data.TryGetProperty(Alias(n), out var array) && array.ValueKind == JsonValueKind.Array)
+                        if (parsed[n].Any(x => x is null))
                         {
-                            foreach (var element in array.EnumerateArray())
-                            {
-                                list.Add(parse(element));
-                            }
+                            parsed[n] = (await SendAsync([requests[batch[n]]], metadata, parse, ct))[0];
                         }
-                        parsed[n] = list;
                     }
                 }
                 if (onBatch is not null)
@@ -159,6 +155,28 @@ public sealed class SerializationApi(ManagementClient client, SerializationApiOp
             }
         }));
         return results;
+    }
+
+    /// <summary>Sends one request for the batch and parses each alias's entries.</summary>
+    private async Task<IReadOnlyList<T>[]> SendAsync<T>(List<SerializeRequest> batch, bool metadata, Func<JsonElement, T> parse, CancellationToken ct)
+    {
+        var (query, variables) = BuildQuery(batch, metadata);
+        using var doc = await client.QueryAsync(query, variables, ct);
+        var data = doc.RootElement.GetProperty("data");
+        var parsed = new IReadOnlyList<T>[batch.Count];
+        for (var n = 0; n < batch.Count; n++)
+        {
+            var list = new List<T>();
+            if (data.TryGetProperty(Alias(n), out var array) && array.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var element in array.EnumerateArray())
+                {
+                    list.Add(parse(element));
+                }
+            }
+            parsed[n] = list;
+        }
+        return parsed;
     }
 
     private static (string Query, Action<Utf8JsonWriter> Variables) BuildQuery(List<SerializeRequest> batch, bool metadata)

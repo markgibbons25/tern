@@ -78,14 +78,21 @@ public static class ApplyCommand
             var applied = await engine.ApplyAsync(plan, includes, checkPreconditions: true, token);
             foreach (var a in applied)
             {
+                if (a.Skipped is not null)
+                {
+                    output.Warn($"[{a.Operation.Database}] {a.Skipped}");
+                    continue;
+                }
                 output.Info($"[{a.Operation.Database}] {SyncRunner.Describe(a.Operation)}", SyncRunner.ColorOf(a.Operation.Action));
             }
+            var skipped = applied.Count(a => a.Skipped is not null);
             output.Document("apply", w =>
             {
-                w.WriteNumber("applied", applied.Count);
+                w.WriteNumber("applied", applied.Count - skipped);
+                w.WriteNumber("skipped", skipped);
                 w.WriteNumber("elapsedMs", watch.ElapsedMilliseconds);
             });
-            output.Info($"Applied {applied.Count} changes.");
+            output.Info(skipped == 0 ? $"Applied {applied.Count} changes." : $"Applied {applied.Count - skipped} changes; skipped {skipped}.");
             return ExitCodes.Success;
         }, ct));
         return cmd;
