@@ -212,7 +212,7 @@ public sealed class CmApplierSkipTests : IDisposable
         for (var max = 1; max < value.Length; max++)
         {
             var json = Write(max);
-            Assert.Equal(value, JsonDocument.Parse(json).RootElement.GetProperty("value").GetString());
+            Assert.Equal(value, JsonElement.Parse(json).GetProperty("value").GetString());
             Assert.Equal(Write(int.MaxValue), json);
         }
     }

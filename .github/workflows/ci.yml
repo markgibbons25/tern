@@ -60,3 +60,52 @@ jobs:
           name: tern-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
           if-no-files-found: error
+
+  # The tool package, packed with the SDK in global.json, at a version only CI uses, so an
+  # install can't pick up a release from nuget.org instead.
+  pack-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Pack the top-level and linux-x64 packages
+        run: |
+          version=0.0.0-ci.${{ github.run_id }}
+          dotnet pack src/Tern.Cli -c Release -r linux-x64 -o artifacts/nupkg -p:Version=$version
+          dotnet pack src/Tern.Cli -c Release -o artifacts/nupkg -p:Version=$version
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tool-nupkg
+          path: artifacts/nupkg/*.nupkg
+          if-no-files-found: error
+
+  # Users install Tern with whatever SDK they have, often the LTS one, which can be older than the
+  # SDK Tern is built with. The tool is a native executable that needs no runtime, so each such
+  # SDK must still install and run it.
+  install-tool:
+    needs: pack-tool
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ['10.0.x']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tool-nupkg
+          path: nupkg
+
+      - name: Install and run with the .NET ${{ matrix.sdk }} SDK
+        run: |
+          dotnet --list-sdks
+          dotnet tool install Tern.Cli --version 0.0.0-ci.${{ github.run_id }} --tool-path tools/tern --add-source nupkg
+          tools/tern/tern --version
