@@ -21,6 +21,7 @@ public static class SerializationCommands
         ser.Subcommands.Add(Info());
         ser.Subcommands.Add(Explain());
         ser.Subcommands.Add(Validate());
+        ser.Subcommands.Add(AnalyzeCommand.Build());
         ser.Subcommands.Add(Pull());
         ser.Subcommands.Add(Push());
         ser.Subcommands.Add(Diff());
@@ -334,6 +335,15 @@ public sealed record SyncRequest(string? Environment, IReadOnlyList<string> Incl
 
     /// <summary>Whether to name the endpoint first; false when the caller has already shown it.</summary>
     public bool Announce { get; init; } = true;
+
+    /// <summary>
+    /// Whether to warn when the project's Includes read far more from the CM than they keep (see
+    /// <c>ser analyze</c>). Only for the project's own Modules: false for a package's, and never for
+    /// Modules a caller chose.
+    /// </summary>
+    public bool WarnOverReading { get; init; } = true;
+
+    internal bool ShouldWarnOverReading => WarnOverReading && Modules is null;
 }
 
 public sealed record DiffRequest(string Source, string Destination, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude, string? Path, string? SourceDatabase, string? DestinationDatabase, bool Push, string? PlanOut)

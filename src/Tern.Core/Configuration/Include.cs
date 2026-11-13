@@ -24,13 +24,17 @@ public sealed class IncludeRule
 
     public bool IsWildcard => Path.IndexOfAny(['*', '?']) >= 0;
 
-    internal ItemPath ItemPath => ItemPath.Parse(Path);
+    // Parsed once: every item a pull or push reads is matched against the rules.
+    private ItemPath? _itemPath;
+    private Regex? _wildcard;
+
+    internal ItemPath ItemPath => _itemPath ??= ItemPath.Parse(Path);
 
     internal bool AppliesTo(ItemPath relative)
     {
         if (IsWildcard)
         {
-            return WildcardRegex(Path).IsMatch(relative.ToString());
+            return (_wildcard ??= WildcardRegex(Path)).IsMatch(relative.ToString());
         }
         return relative.IsDescendantOrSelfOf(ItemPath);
     }
@@ -129,6 +133,10 @@ public sealed class Include
 
     private IEnumerable<IncludeRule> RulesThatApplyTo(ItemPath relative) =>
         relative.Count == 0 ? [] : Rules.Where(r => r.AppliesTo(relative));
+
+    /// <summary>The rule that decides whether <paramref name="path"/> is serialized, or null when the scope alone decides.</summary>
+    public IncludeRule? DecidingRule(ItemPath path) =>
+        path.RelativeTo(Path) is { } relative ? RulesThatApplyTo(relative).FirstOrDefault(r => r.Scope is not null) : null;
 
     /// <summary>Checks the rules the same way the Official CLI does before any command runs.</summary>
     public void Validate()

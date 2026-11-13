@@ -105,7 +105,7 @@ public static class PackageCommands
                 }
                 var packageSession = new Session(temp, session.Output) { RecordDirectory = session.RecordDirectory };
                 packageSession.UseStore(store);
-                var request = new SyncRequest(endpointName, parse.GetValue(include)!, parse.GetValue(exclude)!, parse.GetValue(whatIf), SkipValidation: true, Force: false, PlanOut: null, Publish: parse.GetValue(publish), PublishTargets: []);
+                var request = new SyncRequest(endpointName, parse.GetValue(include)!, parse.GetValue(exclude)!, parse.GetValue(whatIf), SkipValidation: true, Force: false, PlanOut: null, Publish: parse.GetValue(publish), PublishTargets: []) { WarnOverReading = false };
                 return await PushRunner.PushAsync(packageSession, request, token);
             }
             finally

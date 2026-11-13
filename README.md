@@ -186,6 +186,17 @@ A `ser diff` Plan applies between the endpoints it names by host: `tern apply di
 
 With `--pager`, when nothing is applied (`--what-if`, `--plan-out`, `ser diff` without `--push`), a list of changes taller than the terminal opens in a pager, with the keys to press on its status line: `TERN_PAGER`, then `PAGER`, then `less` (Git for Windows' copy is found too). Each summary also counts the changes by action and, when they span several modules, by module (`--quiet` prints only these, without a line for each item), and each command ends with how long it took and where the time went. Every command that talks to a CM first names the endpoint and its host, and says when it is read-only, so nothing runs against the wrong environment unnoticed.
 
+### Find slow module configurations
+
+```bash
+tern ser analyze             # reads every include from the CM and counts what its rules drop
+tern ser analyze --offline   # the configuration only: which rules can drop items
+```
+
+Management Services lists everything in an include's scope, and the include's rules are applied only afterwards, by the Sitecore CLI and by Tern alike. An `ItemAndDescendants` include with a rule such as `{ "path": "*", "scope": "Ignored" }` or `{ "path": "/Home", "scope": "SingleItem" }` still reads every page below it on every pull and push, only to drop them. On a mature site that is most of the time a pull takes.
+
+`ser analyze` names each include that drops at least 1,000 items and more than it keeps, the rules that drop them, where those items sit, and how to restructure the include: split it into includes rooted at the branches it keeps, each with the narrowest scope that keeps what it should (`SingleItem` for `Home`, `ItemAndChildren` for a folder of settings), and give the branches it doesn't keep no include at all. Include names are folder names, so splitting an include moves its Item files; pull once after the change and commit the moves. `ser pull` and `ser push` print one line when this applies, pointing to `ser analyze`.
+
 ### Configure Tern
 
 Tern's own settings go in `.tern/tern.json`, in a `.tern` folder at the repository root, which the Sitecore CLI ignores. Commit it to share the team's endpoints, with no secrets, and Tern's tuning settings:
@@ -227,7 +238,7 @@ tern item query /sitecore/content/Site --template <template-id> --field "Title=*
 | Group | Commands |
 |---|---|
 | Login | `init`, `login`, `connect`, `env list/current/set-default/info`, `cloud login/logout` |
-| Serialization | `ser info`, `explain`, `validate`, `pull`, `push`, `diff`, `watch`, `package create/install`, `apply` |
+| Serialization | `ser info`, `explain`, `validate`, `analyze`, `pull`, `push`, `diff`, `watch`, `package create/install`, `apply` |
 | Content between environments | `content sync`, `content diff`, `content transfer` ([docs/content.md](docs/content.md)) |
 | Items | `item get`, `item query`, `item set` |
 | Jobs | `publish` (and `publish item`, `list-targets`), `index list/statistic/rebuild/schema-populate`, `dbcleanup` |

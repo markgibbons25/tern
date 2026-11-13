@@ -75,6 +75,10 @@ public static class PushRunner
             await Task.WhenAll(targets.Select(t => PublishCommands.RunAndWaitAsync(publishing, output, () => publishing.PublishAsync(null, [], ids, false, t, ct), ct)));
             phases.End("publish");
         }
+        if (request.ShouldWarnOverReading)
+        {
+            AnalyzeCommand.WarnIfOverReading(output, cm, includes, request.Environment);
+        }
         SyncRunner.PrintElapsed(output, phases);
         return exit;
     }

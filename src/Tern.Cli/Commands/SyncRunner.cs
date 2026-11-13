@@ -69,6 +69,10 @@ public static class SyncRunner
         await RunSecurityAsync(output, "roles", "role", () => security.PlanRolePullAsync(modules, ct), request, ct);
         await RunSecurityAsync(output, "users", "user", () => security.PlanUserPullAsync(modules, ct), request, ct);
         phases.End("roles and users");
+        if (request.ShouldWarnOverReading)
+        {
+            AnalyzeCommand.WarnIfOverReading(output, cm, includes, request.Environment);
+        }
         PrintElapsed(output, phases);
         return exit;
     }

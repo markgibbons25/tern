@@ -120,6 +120,7 @@ With no `sitecore.json` yet, `tern init` creates one in the current folder that 
 | What modules and includes exist | `tern ser info --json` |
 | Is a path serialized, and where | `tern ser explain -p /sitecore/content/Home` |
 | Are the Item files consistent | `tern ser validate` (add `--fix` only when asked) |
+| Why pulls and pushes are slow: which includes read far more items than they keep | `tern ser analyze --json` (`--offline` for the configuration only) |
 | One item with all fields | `tern item get /sitecore/content/Home --format json` |
 | Find items | `tern item query /sitecore/content/Site --template <id> --field "Title=*News*" --show Title --json` |
 | What differs between two Endpoints | `tern ser diff -s dev -d uat -i <module> --json` |

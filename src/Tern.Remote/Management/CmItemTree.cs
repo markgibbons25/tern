@@ -105,6 +105,9 @@ public sealed class CmItemTree(SerializationApi api, IReadOnlyList<Guid> exclude
         return top;
     }
 
+    /// <summary>The items already read for an Include, before its rules are applied; null when it hasn't been read.</summary>
+    public IReadOnlyList<ItemMetadata>? Read(Include include) => _metadata.GetValueOrDefault(include);
+
     public async Task<IReadOnlyList<ItemMetadata>> GetMetadataAsync(Include include, CancellationToken ct)
     {
         if (!_metadata.TryGetValue(include, out var metadata))
