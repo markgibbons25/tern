@@ -245,7 +245,7 @@ public class CloudOutputTests
     [Fact]
     public void Prints_the_Official_CLI_payload_without_a_wrapper()
     {
-        var projects = JsonDocument.Parse("""[{"id":"p1","name":"Shop","region":"aue","extra":1}]""").RootElement;
+        var projects = JsonElement.Parse("""[{"id":"p1","name":"Shop","region":"aue","extra":1}]""");
         using var stream = new MemoryStream();
         var output = new Output(json: true, verbose: false, trace: false) { JsonStream = stream };
         output.RawJson(w => CloudOutput.WriteArray(w, projects.EnumerateArray(), CloudOutput.Project));
@@ -270,7 +270,7 @@ public class CloudOutputTests
     [Fact]
     public void Writes_deployment_statuses_as_numbers_and_shows_them_as_names()
     {
-        var deployment = JsonDocument.Parse("""{"id":"d1","calculatedStatus":"Failed","buildStatus":2,"createdAt":"2023-09-13T01:06:52.3186832Z"}""").RootElement;
+        var deployment = JsonElement.Parse("""{"id":"d1","calculatedStatus":"Failed","buildStatus":2,"createdAt":"2023-09-13T01:06:52.3186832Z"}""");
         var json = Tern.Remote.Cloud.CloudJson.Write(w =>
         {
             w.WritePropertyName("d");

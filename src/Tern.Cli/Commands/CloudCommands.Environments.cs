@@ -143,7 +143,7 @@ public static partial class CloudCommands
             list, create, update, delete, info, Connect(), Disconnect(), promote, health, restart, Variable(), Log());
     }
 
-    private static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();
+    private static readonly JsonElement EmptyObject = JsonElement.Parse("{}");
 
     private static void Done(Output output, string command, string environmentId, string verb)
     {

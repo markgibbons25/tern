@@ -51,7 +51,8 @@ public sealed class UpdateCheck
     {
         try
         {
-            if (await Task.WhenAny(_latest, Task.Delay(GraceAfterCommand)) != _latest || await _latest is not { } latest)
+            // A check still running after the grace period throws TimeoutException, caught below.
+            if (await _latest.WaitAsync(GraceAfterCommand) is not { } latest)
             {
                 return;
             }
