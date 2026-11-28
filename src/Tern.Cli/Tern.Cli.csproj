@@ -19,9 +19,11 @@
     <CreateRidSpecificToolPackages Condition="'$(RuntimeIdentifier)' == ''">false</CreateRidSpecificToolPackages>
     <PackageTags>sitecore;sitecore-cli;serialization;scs;xm-cloud;sitecoreai;cli;dotnet-tool;content-sync</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>tern-icon-256.png</PackageIcon>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\assets\tern-icon-256.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />

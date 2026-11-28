@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 156" width="560" height="156" role="img" aria-label="Tern — The Sitecore Community CLI">
+  <defs>
+    <linearGradient id="bgL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#131F36"/>
+      <stop offset="100%" stop-color="#090F1D"/>
+    </linearGradient>
+    <radialGradient id="glowL" cx="56%" cy="48%" r="55%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#090F1D" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cbL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="55%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="cdL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon badge -->
+  <g transform="translate(14, 14) scale(0.5)">
+    <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bgL)"/>
+    <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#glowL)"/>
+    <rect x="9.5" y="9.5" width="237" height="237" rx="50.5" fill="none" stroke="#0F172A" stroke-opacity="0.14" stroke-width="3"/>
+    <g transform="translate(2, 0)">
+      <polygon points="104,44 150,76 164,113 156,116 140,84 114,66" fill="url(#cbL)"/>
+      <polygon points="82,78 124,96 135,127 115,104 94,91" fill="url(#cdL)"/>
+      <polygon points="58,48 138,88 160,118 135,128 125,97 74,64" fill="#FFFFFF"/>
+      <polygon points="125,97 160,118 135,128" fill="#E0F2FE"/>
+      <polygon points="44,98 126,128 95,128" fill="#FFFFFF"/>
+      <polygon points="44,158 126,128 95,128" fill="#CBD5E1"/>
+      <polygon points="135,128 162,128 108,160 66,182 99,150" fill="#F8FAFC"/>
+      <polygon points="162,128 148,164 106,204 122,165 86,190 108,160" fill="url(#cbL)"/>
+      <polygon points="162,128 148,164 106,204 134,160" fill="url(#cdL)"/>
+      <polygon points="122,165 106,204 68,210 92,185" fill="#FFFFFF"/>
+      <polygon points="135,128 160,118 162,128" fill="#F1F5F9"/>
+      <path d="M 159 118 C 169 105, 185 105, 195 118 Z" fill="#1E293B"/>
+      <polygon points="159,118 195,118 188,128 162,128" fill="#FFFFFF"/>
+      <polygon points="162,128 188,128 148,164" fill="#E0F2FE"/>
+      <polygon points="194,118 219,125 186,124" fill="#EF4444"/>
+      <polygon points="186,124 219,125 188,129" fill="#DC2626"/>
+    </g>
+  </g>
+
+  <!-- Wordmark + subtitle -->
+  <text x="166" y="88" font-family="'Inter', 'Adwaita Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="78" font-weight="700" letter-spacing="-2.5" fill="#0F172A">tern</text>
+  <text x="169" y="122" font-family="'Inter', 'Adwaita Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="500" letter-spacing="0.1" fill="#475569">The Sitecore Community CLI</text>
+</svg>

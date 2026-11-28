@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Tern mark (light theme)">
+  <defs>
+    <linearGradient id="cyanBrightL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="55%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="cyanDeepL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(2, 0)">
+    <polygon points="104,44 150,76 164,113 156,116 140,84 114,66" fill="url(#cyanBrightL)"/>
+    <polygon points="82,78 124,96 135,127 115,104 94,91" fill="url(#cyanDeepL)"/>
+    <polygon points="58,48 138,88 160,118 135,128 125,97 74,64" fill="#0F172A"/>
+    <polygon points="125,97 160,118 135,128" fill="#1E293B"/>
+    <polygon points="44,98 126,128 95,128" fill="#0F172A"/>
+    <polygon points="44,158 126,128 95,128" fill="#475569"/>
+    <polygon points="135,128 162,128 108,160 66,182 99,150" fill="#1E293B"/>
+    <polygon points="162,128 148,164 106,204 122,165 86,190 108,160" fill="url(#cyanBrightL)"/>
+    <polygon points="162,128 148,164 106,204 134,160" fill="url(#cyanDeepL)"/>
+    <polygon points="122,165 106,204 68,210 92,185" fill="#0F172A"/>
+    <polygon points="135,128 160,118 162,128" fill="#CBD5E1"/>
+    <path d="M 159 118 C 169 105, 185 105, 195 118 Z" fill="#020617"/>
+    <polygon points="159,118 195,118 188,128 162,128" fill="#E2E8F0"/>
+    <polygon points="162,128 188,128 148,164" fill="#334155"/>
+    <polygon points="194,118 219,125 186,124" fill="#EF4444"/>
+    <polygon points="186,124 219,125 188,129" fill="#B91C1C"/>
+  </g>
+</svg>

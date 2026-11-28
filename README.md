@@ -1,4 +1,10 @@
-# Tern
+<p align="left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/tern-logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/tern-logo-light.svg">
+    <img alt="Tern — The Sitecore Community CLI" src="assets/tern-logo-light.svg" width="380">
+  </picture>
+</p>
 
 [![NuGet](https://img.shields.io/nuget/v/Tern.Cli)](https://www.nuget.org/packages/Tern.Cli)
 
