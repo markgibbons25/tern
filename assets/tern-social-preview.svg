@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Tern — The Sitecore Community CLI">
+  <defs>
+    <linearGradient id="canvasBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#080D1A"/>
+    </linearGradient>
+    <radialGradient id="heroGlow" cx="24%" cy="48%" r="48%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#0284C7" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0B1220" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="redGlow" cx="84%" cy="22%" r="36%">
+      <stop offset="0%" stop-color="#EF4444" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#0B1220" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tileBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#172540"/>
+      <stop offset="100%" stop-color="#0A101E"/>
+    </linearGradient>
+    <linearGradient id="cbS" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="55%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="cdS" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#94A3B8" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="1280" height="640" fill="url(#canvasBg)"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" fill="url(#heroGlow)"/>
+  <rect width="1280" height="640" fill="url(#redGlow)"/>
+
+  <!-- Subtle flight-path migration arcs -->
+  <path d="M 280 510 C 560 550, 920 460, 1240 180" fill="none" stroke="#38BDF8" stroke-opacity="0.11" stroke-width="2" stroke-dasharray="6 10"/>
+  <path d="M 320 548 C 620 578, 960 495, 1260 245" fill="none" stroke="#EF4444" stroke-opacity="0.1" stroke-width="1.5"/>
+
+  <!-- Left Icon Tile -->
+  <g transform="translate(108, 174) scale(1.08)">
+    <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#tileBg)"/>
+    <rect x="9.5" y="9.5" width="237" height="237" rx="50.5" fill="none" stroke="#38BDF8" stroke-opacity="0.28" stroke-width="2.5"/>
+    <g transform="translate(2, 0)">
+      <polygon points="104,44 150,76 164,113 156,116 140,84 114,66" fill="url(#cbS)"/>
+      <polygon points="82,78 124,96 135,127 115,104 94,91" fill="url(#cdS)"/>
+      <polygon points="58,48 138,88 160,118 135,128 125,97 74,64" fill="#FFFFFF"/>
+      <polygon points="125,97 160,118 135,128" fill="#E0F2FE"/>
+      <polygon points="44,98 126,128 95,128" fill="#FFFFFF"/>
+      <polygon points="44,158 126,128 95,128" fill="#CBD5E1"/>
+      <polygon points="135,128 162,128 108,160 66,182 99,150" fill="#F8FAFC"/>
+      <polygon points="162,128 148,164 106,204 122,165 86,190 108,160" fill="url(#cbS)"/>
+      <polygon points="162,128 148,164 106,204 134,160" fill="url(#cdS)"/>
+      <polygon points="122,165 106,204 68,210 92,185" fill="#FFFFFF"/>
+      <polygon points="135,128 160,118 162,128" fill="#F1F5F9"/>
+      <path d="M 159 118 C 169 105, 185 105, 195 118 Z" fill="#1E293B"/>
+      <polygon points="159,118 195,118 188,128 162,128" fill="#FFFFFF"/>
+      <polygon points="162,128 188,128 148,164" fill="#E0F2FE"/>
+      <polygon points="194,118 219,125 186,124" fill="#EF4444"/>
+      <polygon points="186,124 219,125 188,129" fill="#DC2626"/>
+    </g>
+  </g>
+
+  <!-- Right Copy Block -->
+  <text x="438" y="274" font-family="'Inter', 'Adwaita Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="114" font-weight="700" letter-spacing="-4" fill="#F8FAFC">tern</text>
+
+  <text x="442" y="330" font-family="'Inter', 'Adwaita Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="500" fill="#CBD5E1">The Sitecore Community CLI</text>
+  <text x="442" y="370" font-family="'Inter', 'Adwaita Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="400" fill="#94A3B8">Fast, safe, and built for scripts and AI agents.</text>
+
+  <!-- Feature Pills -->
+  <g transform="translate(442, 412)">
+    <rect x="0" y="0" width="142" height="38" rx="19" fill="#0EA5E9" fill-opacity="0.14" stroke="#38BDF8" stroke-opacity="0.35" stroke-width="1.2"/>
+    <text x="71" y="24.5" text-anchor="middle" font-family="'Inter', 'Adwaita Sans', sans-serif" font-size="15.5" font-weight="600" fill="#7DD3FC">Native AOT</text>
+
+    <rect x="156" y="0" width="166" height="38" rx="19" fill="#F8FAFC" fill-opacity="0.06" stroke="#94A3B8" stroke-opacity="0.28" stroke-width="1.2"/>
+    <text x="239" y="24.5" text-anchor="middle" font-family="'Inter', 'Adwaita Sans', sans-serif" font-size="15.5" font-weight="600" fill="#E2E8F0">Drop-in CLI</text>
+
+    <rect x="336" y="0" width="168" height="38" rx="19" fill="#F8FAFC" fill-opacity="0.06" stroke="#94A3B8" stroke-opacity="0.28" stroke-width="1.2"/>
+    <text x="420" y="24.5" text-anchor="middle" font-family="'Inter', 'Adwaita Sans', sans-serif" font-size="15.5" font-weight="600" fill="#E2E8F0">Plan &amp; Apply</text>
+
+    <rect x="518" y="0" width="180" height="38" rx="19" fill="#EF4444" fill-opacity="0.13" stroke="#EF4444" stroke-opacity="0.35" stroke-width="1.2"/>
+    <text x="608" y="24.5" text-anchor="middle" font-family="'Inter', 'Adwaita Sans', sans-serif" font-size="15.5" font-weight="600" fill="#FCA5A5">Zero Telemetry</text>
+  </g>
+
+  <!-- Terminal command strip -->
+  <g transform="translate(442, 482)">
+    <rect x="0" y="0" width="530" height="50" rx="10" fill="#060A14" stroke="#1E293B" stroke-width="1.5"/>
+    <text x="20" y="31" font-family="'JetBrainsMono Nerd Font', 'Adwaita Mono', 'Liberation Mono', monospace" font-size="17" fill="#38BDF8">$</text>
+    <text x="42" y="31" font-family="'JetBrainsMono Nerd Font', 'Adwaita Mono', 'Liberation Mono', monospace" font-size="17" fill="#E2E8F0">dotnet tool install --global Tern.Cli</text>
+  </g>
+</svg>
